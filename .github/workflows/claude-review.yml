@@ -1,0 +1,39 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [labeled, synchronize]
+
+jobs:
+  claude_review:
+    # 'claude-review' 라벨이 붙었을 때만 실행되도록 필터링
+    if: contains(github.event.pull_request.labels.*.name, 'claude-review')
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write       # 코드 수정 제안 등을 위해 필요
+      pull-requests: write # 리뷰 댓글 작성을 위해 필요
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude Code Action Official
+        uses: anthropics/claude-code-action@v0.0.31 # 가이드의 최신 버전 사용
+        with:
+          # 라벨 트리거를 'claude-review'로 설정
+          label_trigger: 'claude-review' 
+          
+          # 필수: GitHub Secrets에 저장한 API 키 참조
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          # (선택) 리뷰 품질을 높이기 위한 추가 지시사항
+          custom_instructions: |
+            사용자가 'claude-review' 라벨을 붙였습니다. 
+            PR의 변경 사항을 분석하고, 보안 및 성능 관점에서 리뷰를 남겨주세요.
+            필요하다면 직접 수정 코드를 제안(Suggestion)해도 좋습니다.
+
+          # (선택) 리뷰가 한 댓글에 계속 업데이트되게 하려면 true (추천)
+          use_sticky_comment: true
