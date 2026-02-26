@@ -61,6 +61,10 @@ server/gradle.zip
 *.yml
 *.yaml
 
+# .github 하위 워크플로우/템플릿 yml은 추적 유지
+!.github/**/*.yml
+!.github/**/*.yaml
+
 # 특정 경로(resources) 내의 설정파일을 확실히 무시
 **/src/main/resources/application*.properties
 **/src/main/resources/application*.yml
