@@ -1,0 +1,111 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.1'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id 'jacoco'
+}
+
+group = 'com.netmarble'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = '17'
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // Database
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'com.h2database:h2'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:mysql'
+}
+
+// ─── 단위 테스트 (integration 태그 제외, MySQL 불필요) ────────────────────────
+tasks.named('test') {
+    useJUnitPlatform {
+        excludeTags 'integration'
+    }
+    finalizedBy jacocoTestReport
+}
+
+// ─── 통합 테스트 태스크 (로컬 MySQL 필요) ─────────────────────────────────────
+tasks.register('integrationTest', Test) {
+    description = '통합 테스트 실행 (로컬 MySQL localhost:3306 필요)'
+    group = 'verification'
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+    shouldRunAfter test
+}
+
+// ─── JaCoCo 설정 ──────────────────────────────────────────────────────────────
+jacoco {
+    toolVersion = '0.8.11'
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+    // DTO, 설정 클래스, 진입점, 인터페이스 등은 커버리지 측정에서 제외
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                '**/dto/**',
+                '**/config/**',
+                '**/ChatApplication*',
+                '**/exception/ErrorResponse*',
+                '**/domain/repository/**',
+                '**/infrastructure/persistence/Jpa*',
+            ])
+        }))
+    }
+}
+
+// ─── 커버리지 최소 기준 검증 ──────────────────────────────────────────────────
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            element = 'BUNDLE'
+            excludes = [
+                'com.netmarble.chat.application.dto.*',
+                'com.netmarble.chat.infrastructure.config.*',
+                'com.netmarble.chat.ChatApplication',
+                'com.netmarble.chat.presentation.exception.ErrorResponse',
+                'com.netmarble.chat.domain.repository.*',
+                'com.netmarble.chat.infrastructure.persistence.Jpa*',
+            ]
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.15
+            }
+        }
+    }
+}

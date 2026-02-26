@@ -1,0 +1,89 @@
+# --- OS & IDE ---
+.DS_Store
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+# server.log는 용량이 크므로 추적 제외
+server.log
+
+# --- Dependencies ---
+node_modules/
+/client/node_modules/
+/server/.gradle/
+/server/bin/
+/.pnp
+.pnp.js
+
+# --- Build & Output ---
+dist/
+dist-ssr/
+build/
+out/
+/client/dist/
+/client/build/
+/server/build/
+/server/target/
+/server/out/
+# Gradle wrapper 및 중요 경로는 제외(추적 유지)
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+!**/src/main/**/out/
+!**/src/test/**/out/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+# Gradle 로컬 배포본 및 압축 파일 (대용량)
+server/gradle-8.5/
+server/gradle.zip
+
+# --- Secrets & Configs (핵심!) ---
+.env
+.env.local
+.env.*.local
+*.properties
+*.yml
+*.yaml
+
+# 특정 경로(resources) 내의 설정파일을 확실히 무시
+**/src/main/resources/application*.properties
+**/src/main/resources/application*.yml
+**/src/main/resources/application*.yaml
+
+# --- Testing ---
+coverage/
+.nyc_output
+test-results/
+
+# --- Misc ---
+HELP.md
+.claude/
+.cursor/
+
+# Playwright
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# Shell Scripts
+*.sh
+
+# .bat files
+*.bat   
