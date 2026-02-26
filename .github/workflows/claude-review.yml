@@ -3,15 +3,9 @@ name: Claude Code Review
 on:
   pull_request:
     # 라벨 추가 시에만 실행 (synchronize 제외 → 토큰 절감)
+    # paths 필터 제거: labeled 이벤트와 함께 쓰면 트리거가 무시됨
+    # 파일 범위 제한은 direct_prompt에서 지시하는 방식으로 대체
     types: [labeled]
-    # 핵심 소스 코드 파일이 포함된 PR에만 적용
-    paths:
-      - 'server/src/main/java/**'
-      - 'server/src/test/java/**'
-      - 'client/src/components/**'
-      - 'client/src/api/**'
-      - 'client/src/store/**'
-      - 'client/src/hooks/**'
 
 jobs:
   claude_review:
