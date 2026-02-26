@@ -42,6 +42,7 @@ out/
 /server/out/
 # Gradle wrapper 및 중요 경로는 제외(추적 유지)
 !gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.properties
 !**/src/main/**/build/
 !**/src/test/**/build/
 !**/src/main/**/out/

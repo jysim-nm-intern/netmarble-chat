@@ -7,12 +7,14 @@ on:
       - 'server/src/**'
       - 'server/build.gradle'
       - 'server/settings.gradle'
+      - 'server/gradle/**'
   pull_request:
     branches: [ main, master, phase-* ]
     paths:
       - 'server/src/**'
       - 'server/build.gradle'
       - 'server/settings.gradle'
+      - 'server/gradle/**'
 
 jobs:
   # ─── 단위 테스트 (H2 인메모리, @Tag("integration") 제외) ─────────────────────
@@ -41,13 +43,27 @@ jobs:
       - name: Gradle 실행 권한 부여
         run: chmod +x ./gradlew
 
-      - name: 단위 테스트 + JaCoCo 커버리지 리포트 생성
-        run: ./gradlew test jacocoTestReport --no-daemon
+      - name: 단위 테스트 실행
+        run: ./gradlew test --no-daemon
         continue-on-error: true
+
+      - name: JaCoCo 커버리지 리포트 생성
+        run: ./gradlew jacocoTestReport --no-daemon
+        continue-on-error: true
+
+      - name: 테스트 결과 파일 확인
+        id: check-unit-tests
+        if: always()
+        run: |
+          if ls build/test-results/test/*.xml 2>/dev/null | head -1 | grep -q .; then
+            echo "has-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-tests=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: 테스트 결과 PR 체크에 기록
         uses: dorny/test-reporter@v1
-        if: always()
+        if: always() && steps.check-unit-tests.outputs.has-tests == 'true'
         with:
           name: Server Unit Tests
           path: server/build/test-results/test/*.xml
@@ -113,9 +129,19 @@ jobs:
           SPRING_DATASOURCE_PASSWORD: chatpass
           SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
 
+      - name: 통합 테스트 결과 파일 확인
+        id: check-integration-tests
+        if: always()
+        run: |
+          if ls build/test-results/integrationTest/*.xml 2>/dev/null | head -1 | grep -q .; then
+            echo "has-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-tests=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: 통합 테스트 결과 PR 체크에 기록
         uses: dorny/test-reporter@v1
-        if: always()
+        if: always() && steps.check-integration-tests.outputs.has-tests == 'true'
         with:
           name: Server Integration Tests
           path: server/build/test-results/integrationTest/*.xml

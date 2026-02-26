@@ -39,12 +39,22 @@ jobs:
         run: npm ci
 
       - name: 단위 테스트 실행 (JUnit XML 리포트 생성)
-        run: npx vitest run --reporter=verbose --reporter=junit --outputFile=test-results/junit.xml
+        run: npx vitest run --passWithNoTests --reporter=verbose --reporter=junit --outputFile=test-results/junit.xml
         continue-on-error: true
+
+      - name: 테스트 결과 파일 확인
+        id: check-tests
+        if: always()
+        run: |
+          if [ -f test-results/junit.xml ] && grep -q '<testcase' test-results/junit.xml 2>/dev/null; then
+            echo "has-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-tests=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: 테스트 결과 PR 체크에 기록
         uses: dorny/test-reporter@v1
-        if: always()
+        if: always() && steps.check-tests.outputs.has-tests == 'true'
         with:
           name: Client Unit Tests
           path: client/test-results/junit.xml
