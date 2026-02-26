@@ -2,8 +2,16 @@ name: Playwright Tests
 on:
   push:
     branches: [ main, master, phase-* ]
+    paths:
+      - 'client/src/**'
+      - 'client/package*.json'
+      - 'client/playwright.config.*'
   pull_request:
     branches: [ main, master, phase-* ]
+    paths:
+      - 'client/src/**'
+      - 'client/package*.json'
+      - 'client/playwright.config.*'
 jobs:
   test:
     timeout-minutes: 60
