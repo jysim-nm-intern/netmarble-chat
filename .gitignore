@@ -70,6 +70,9 @@ server/gradle.zip
 **/src/main/resources/application*.yml
 **/src/main/resources/application*.yaml
 
+# 테스트 리소스의 application.properties는 추적 허용 (H2 설정, 비밀정보 없음)
+!**/src/test/resources/application*.properties
+
 # --- Testing ---
 coverage/
 .nyc_output

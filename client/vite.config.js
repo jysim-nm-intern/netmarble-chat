@@ -12,7 +12,7 @@ export default defineConfig({
     setupFiles: './src/setupTests.js',
     clearMocks: true,
     globals: true,
-    exclude: ['e2e/**', '**/node_modules/**'],
+    exclude: ['tests/e2e/**', '**/node_modules/**'],
   },
   server: {
     host: '0.0.0.0',
