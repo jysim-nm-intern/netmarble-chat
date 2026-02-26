@@ -46,3 +46,5 @@ jobs:
             문제가 있으면 수정 코드를 Suggestion으로 제안해주세요.
 
           use_sticky_comment: true
+          # 에러 진단용 (확인 후 제거 예정)
+          show_full_output: true
