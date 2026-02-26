@@ -60,21 +60,26 @@ Closes #7
 
 ---
 
-## 브랜치 네이밍
+## 브랜치 전략
 
 ```
-feature/phase-1/{기능명}   # 기능 구현
-fix/phase-1/{버그명}       # 버그 수정
-test/phase-1/{테스트명}    # 테스트 작성
-docs/phase-1/{문서명}      # 문서 작업
+main
+└── phase-{N}          # Phase Epic 브랜치 (Phase 완료 시 main으로 머지)
+    ├── feature/phase-{N}/{기능명}   # 기능 구현
+    ├── fix/phase-{N}/{버그명}       # 버그 수정
+    ├── test/phase-{N}/{테스트명}    # 테스트 작성
+    └── docs/phase-{N}/{문서명}      # 문서 작업
 ```
+
+- feature/* 브랜치는 반드시 `phase-{N}` 브랜치로 PR을 올립니다.
+- `phase-{N}` 브랜치는 해당 Phase의 모든 기능이 완료된 후 `main`으로 머지합니다.
 
 예시:
 ```
-feature/phase-1/stomp-message
-feature/phase-1/chatroom-join
-fix/phase-1/unread-count
-test/phase-1/user-service
+feature/phase-1/stomp-message  →  phase-1  →  main (Phase 1 완료 시)
+feature/phase-1/chatroom-join  →  phase-1
+fix/phase-1/unread-count       →  phase-1
+test/phase-1/user-service      →  phase-1
 ```
 
 ---
