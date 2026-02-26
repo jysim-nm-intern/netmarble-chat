@@ -31,7 +31,8 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
           # PR에서 변경된 핵심 소스 파일만 리뷰 (워크플로우·설정 파일 제외)
-          direct_prompt: |
+          # v1에서 direct_prompt → prompt 로 파라미터명 변경됨
+          prompt: |
             이 PR에서 변경된 파일 중 아래 경로에 해당하는 파일만 리뷰해주세요.
             리뷰 대상: server/src/main/java/, server/src/test/java/, client/src/components/, client/src/api/, client/src/store/, client/src/hooks/
             제외 대상: .github/, *.yml, *.yaml, *.properties, build.gradle, package.json, vite.config.* 등 설정·인프라 파일
