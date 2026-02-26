@@ -3,13 +3,17 @@ on:
   push:
     branches: [ main, master, phase-* ]
     paths:
-      - 'client/src/**'
+      - 'client/src/components/**'
+      - 'client/src/api/**'
+      - 'client/tests/**'
       - 'client/package*.json'
       - 'client/playwright.config.*'
   pull_request:
     branches: [ main, master, phase-* ]
     paths:
-      - 'client/src/**'
+      - 'client/src/components/**'
+      - 'client/src/api/**'
+      - 'client/tests/**'
       - 'client/package*.json'
       - 'client/playwright.config.*'
 jobs:
