@@ -1,0 +1,60 @@
+name: Client Unit Tests
+
+on:
+  push:
+    branches: [ main, master, phase-* ]
+    paths:
+      - 'client/src/**'
+      - 'client/package*.json'
+  pull_request:
+    branches: [ main, master, phase-* ]
+    paths:
+      - 'client/src/**'
+      - 'client/package*.json'
+
+jobs:
+  unit-test:
+    name: Vitest 단위 테스트
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 단위 테스트 실행 (JUnit XML 리포트 생성)
+        run: npx vitest run --reporter=verbose --reporter=junit --outputFile=test-results/junit.xml
+        continue-on-error: true
+
+      - name: 테스트 결과 PR 체크에 기록
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Client Unit Tests
+          path: client/test-results/junit.xml
+          reporter: java-junit
+          fail-on-error: true
+
+      - name: 테스트 결과 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: client-test-results
+          path: client/test-results/
+          retention-days: 7
