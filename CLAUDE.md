@@ -35,6 +35,16 @@
 - **커밋:** Conventional Commits 형식 준수. 상세 규칙은 [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) 참조.
   - 형식: `type: 한국어 제목` → body에 변경 내용 bullet + `Refs: SPEC-XXX-000` + `Closes #N`
   - 주요 type: `feat`, `fix`, `test`, `docs`, `refactor`, `chore`
+  - **커밋 전:** Claude Code에서 `/security-review` 실행하여 보안 점검 후 이상 없을 때 커밋
+- **브랜치 전략 (필수 준수):**
+  - feature/* 브랜치는 반드시 `phase-{N}` 브랜치로 PR을 올립니다. (절대 `main`으로 직접 PR 금지)
+  - `phase-{N}` 브랜치는 해당 Phase의 모든 기능이 완료된 후 `main`으로 머지합니다.
+  - 상세 브랜치 네이밍 규칙은 [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) 참조.
+- **PR 생성 규칙 (필수 준수):**
+  - `--base phase-{N}` 항상 지정 (예: `--base phase-1`)
+  - `--assignee "@me"` 항상 포함
+  - `--label` 에 반드시 `claude-review` + `phase-1` + 기능 타입 라벨(`feature` / `fix` / `test` / `docs`) 포함
+  - PR 생성 후 `claude-review` 라벨로 GitHub Actions Claude 코드 리뷰 자동 트리거됨
 - **동작:** 코드 수정 전 기존 구조를 분석하고, 대규모 변경 시 사용자에게 계획을 먼저 공유합니다.
 - **테스트 실행 (필수):** 기능 구현, 리팩토링, 코드 변경이 완료되면 변경된 부분과 관련된 단위 테스트(Unit Test) 및 E2E 테스트를 반드시 실행하고 결과를 확인합니다. 테스트가 실패하면 수정 후 재실행하여 모든 테스트가 통과할 때까지 작업을 완료로 간주하지 않습니다.
 
