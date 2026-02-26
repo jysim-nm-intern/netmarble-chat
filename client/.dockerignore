@@ -1,0 +1,16 @@
+# 의존성 (Dockerfile에서 npm ci로 설치)
+node_modules/
+
+# 빌드 산출물
+dist/
+
+# 테스트 결과
+playwright-report/
+test-results/
+
+# IDE 및 에디터
+.claude/
+.github/
+
+# 로그
+*.log
