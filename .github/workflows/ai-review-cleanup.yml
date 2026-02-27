@@ -1,0 +1,105 @@
+name: AI Review Smart Cleanup
+
+on:
+  pull_request:
+    # PR이 새로 열리거나, 커밋이 추가되거나, 닫혔다 다시 열릴 때 실행
+    types: [opened, synchronize, reopened]
+
+jobs:
+  smart-cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Cleanup Stale AI Comments
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            /**
+             * 봇 계정 판별: GitHub 봇은 로그인명이 '[bot]'으로 끝남
+             * 예) copilot[bot], github-actions[bot], coderabbitai[bot]
+             */
+            function isBot(login) {
+              return login.endsWith('[bot]');
+            }
+
+            // databaseId: GraphQL 전용 opaque ID가 아닌 REST API 숫자 ID를 직접 반환
+            // → github.rest.pulls.deleteReviewComment({ comment_id: databaseId }) 에 바로 사용 가능
+            const query = `
+              query($owner: String!, $repo: String!, $prNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $prNumber) {
+                    reviewThreads(first: 100) {
+                      nodes {
+                        id
+                        isResolved
+                        comments(first: 50) {
+                          nodes {
+                            id
+                            databaseId
+                            author { login }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const result = await github.graphql(query, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              prNumber: context.payload.pull_request.number
+            });
+
+            const threads = result.repository.pullRequest.reviewThreads.nodes;
+            console.log(`총 ${threads.length}개의 리뷰 스레드를 분석합니다.`);
+
+            for (const thread of threads) {
+              const comments = thread.comments.nodes;
+              if (comments.length === 0) continue;
+
+              // ✅ 보존 규칙 1: Resolved(해결됨) 스레드 — 수정 완료된 유의미한 기록
+              if (thread.isResolved) continue;
+
+              // ✅ 보존 규칙 2: 사람이 답글을 단 스레드 — 진행 중인 토론, 맥락 유지
+              const hasHumanReply = comments.some(c => !isBot(c.author.login));
+              if (hasHumanReply) continue;
+
+              // 🗑️ 삭제 대상: 봇이 시작했고, 미해결이며, 사람 개입이 없는 고립된 스레드
+              const firstAuthor = comments[0].author.login;
+              if (!isBot(firstAuthor)) continue;
+
+              console.log(`삭제 대상 발견: 봇 단독 미해결 스레드 (코멘트 ${comments.length}개, 작성자: ${firstAuthor})`);
+
+              for (const comment of comments) {
+                try {
+                  // databaseId를 사용하므로 ID 변환 없이 REST API 직접 호출 가능
+                  await github.rest.pulls.deleteReviewComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: comment.databaseId
+                  });
+                  console.log(`삭제 완료: 코멘트 #${comment.databaseId}`);
+                } catch (e) {
+                  // 삭제 권한 없는 경우 (봇이 아닌 앱 토큰 등) → Minimize(숨김) 처리로 대체
+                  console.log(`삭제 실패 (${e.message}), Minimize 처리 시도 중...`);
+                  try {
+                    await github.graphql(`
+                      mutation($subjectId: ID!) {
+                        minimizeComment(input: { subjectId: $subjectId, classifier: OUTDATED }) {
+                          minimizedComment { isMinimized }
+                        }
+                      }
+                    `, { subjectId: comment.id });
+                    console.log(`Minimize 처리 완료: 코멘트 #${comment.databaseId}`);
+                  } catch (me) {
+                    console.log(`Minimize도 실패: ${me.message}`);
+                  }
+                }
+              }
+            }
