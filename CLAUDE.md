@@ -68,19 +68,27 @@
 
     ## ✅ 테스트 실행 결과
 
-    ### 단위 테스트
-    - [x] 통과 (`./gradlew test` / `npm test`)
+    ### Server 단위 테스트 (`./gradlew test`)
+    - [x] 통과
     - 실행 결과: BUILD SUCCESS / Tests run: N, Failures: 0, Errors: 0
 
-    ### E2E 테스트
-    - [x] 통과
+    ### Server 통합 테스트 (`./gradlew integrationTest`, MySQL)
+    - [x] 통과 / 해당 없음
+    - 실행 결과: BUILD SUCCESS / Tests run: N, Failures: 0, Errors: 0
+
+    ### Client 단위 테스트 (`npm test`)
+    - [x] 통과 / 해당 없음
+    - 실행 결과: N passed, 0 failed
+
+    ### E2E 테스트 (Playwright)
+    - [x] 통과 / 해당 없음
     - 실행 결과: N passed, 0 failed
 
     ---
 
-    ## 🤖 Claude 코드 리뷰 체크리스트
+    ## 🤖 AI 코드 리뷰 체크리스트
 
-    > PR 머지 전 Claude 리뷰를 통해 아래 항목을 확인합니다.
+    > Copilot, Claude, CodeRabbit 등 AI 리뷰어가 코드 리뷰 후 아래 항목을 체크합니다.
 
     - [ ] **DDD 계층 준수** — Controller → Service → Domain 방향 의존성 유지, Repository 직접 호출 없음
     - [ ] **REST/STOMP 역할 분리** — 실시간 메시지는 STOMP(`/app`), 조회/등록은 REST
