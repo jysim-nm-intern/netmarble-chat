@@ -118,7 +118,7 @@ class MessageSearchIntegrationTest {
     }
 
     @Test
-    void searchByChatRoomIdAndKeyword_OnlyActiveChatRoom() {
+    void searchByChatRoomIdAndKeyword_FiltersByChatRoomId() {
         // 두 개의 채팅방 생성
         ChatRoom chatRoom2 = new ChatRoom("다른 채팅방", "다른 설명", user1);
         chatRoom2 = chatRoomRepository.save(chatRoom2);
