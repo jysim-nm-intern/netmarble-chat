@@ -61,7 +61,7 @@ jobs:
             `;
 
             const commentQuery = `
-              query($owner: String!, $repo: String!, $prNumber: Int!, $threadId: ID!, $commentCursor: String) {
+              query($threadId: ID!, $commentCursor: String) {
                 node(id: $threadId) {
                   ... on PullRequestReviewThread {
                     comments(first: 50, after: $commentCursor) {
@@ -95,11 +95,9 @@ jobs:
                 let comments = [...thread.comments.nodes];
                 let commentPageInfo = thread.comments.pageInfo;
 
-                while (commentPageInfo.hasNextPage) {
+                // Resolved 스레드는 추가 페이지 조회 불필요 — 어차피 보존 대상
+                while (!thread.isResolved && commentPageInfo.hasNextPage) {
                   const commentResult = await github.graphql(commentQuery, {
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    prNumber: context.payload.pull_request.number,
                     threadId: thread.id,
                     commentCursor: commentPageInfo.endCursor
                   });
