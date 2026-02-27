@@ -68,7 +68,7 @@ class MessageSearchIntegrationTest {
         // 검증
         assertEquals(3, results.size(), "검색 결과는 3개여야 합니다.");
         
-        // 지번 확인 - 역순 정렬
+        // 순서 확인 - 역순 정렬
         assertEquals("hello again", results.get(0).getContent());
         assertEquals("hello everyone", results.get(1).getContent());
         assertEquals("hello world", results.get(2).getContent());
