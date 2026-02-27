@@ -35,6 +35,106 @@
 - **커밋:** Conventional Commits 형식 준수. 상세 규칙은 [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) 참조.
   - 형식: `type: 한국어 제목` → body에 변경 내용 bullet + `Refs: SPEC-XXX-000` + `Closes #N`
   - 주요 type: `feat`, `fix`, `test`, `docs`, `refactor`, `chore`
+  - **커밋 전:** Claude Code에서 `/security-review` 실행하여 보안 점검 후 이상 없을 때 커밋
+- **브랜치 전략 (필수 준수):**
+  - feature/* 브랜치는 반드시 `phase-{N}` 브랜치로 PR을 올립니다. (절대 `main`으로 직접 PR 금지)
+  - `phase-{N}` 브랜치는 해당 Phase의 모든 기능이 완료된 후 `main`으로 머지합니다.
+  - 상세 브랜치 네이밍 규칙은 [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) 참조.
+- **PR 생성 규칙 (필수 준수):**
+
+  **[1단계] PR 생성 전 — 로컬 테스트 실행 (필수)**
+
+  아래 4가지 테스트를 모두 실행하고 결과(통과 수, 실패 수)를 기록합니다.
+  ```
+  # Server 단위 테스트
+  cd server && ./gradlew test
+
+  # Server 통합 테스트 (MySQL 필요)
+  cd server && ./gradlew integrationTest
+
+  # Client 단위 테스트
+  cd client && npm test
+
+  # E2E 테스트 (서버 실행 중이어야 함)
+  cd client && npx playwright test
+  ```
+
+  **[2단계] PR 생성 전 — AI 코드 리뷰 체크리스트 로컬 검토 (필수)**
+
+  변경된 파일을 대상으로 아래 항목을 검토하고, 통과 여부를 `--body`에 체크 표시합니다.
+  - DDD 계층 격리 준수 (Controller → Service → Domain, Repository 직접 호출 없음)
+  - REST/STOMP 프로토콜 역할 분리 준수
+  - 인터페이스 기반 설계 (도메인이 인프라에 직접 의존하지 않음)
+  - 인증·인가 처리 적절
+  - 입력값 검증 및 sanitization 적용
+  - SQL Injection / XSS 취약점 없음
+  - 비즈니스 로직이 Service 레이어에 위치
+  - 예외 처리 적절
+  - 테스트 커버리지 적정 수준
+  - SDD 명세(SPEC-XXX-NNN) 준수
+
+  **[3단계] PR 생성 — GitHub CLI 옵션**
+
+  - `--base phase-{N}` 항상 지정 (예: `--base phase-1`)
+  - `--assignee "@me"` 항상 포함
+  - `--label` 에 `phase-{N}` + 기능 타입 라벨(`feature` / `fix` / `test` / `docs`) 포함
+    - `claude-review` 라벨은 **사용자가 수동으로** 추가 (PR 생성 시 포함하지 않음)
+  - **`--body`는 반드시 `.github/pull_request_template.md` 형식 그대로 사용** (아래 구조 준수):
+    ```
+    ## 🔗 관련 이슈 / SPEC
+    - Closes #N
+    - 구현 SPEC: `SPEC-XXX-000`
+
+    ---
+
+    ## 📝 변경 사항 요약
+
+    ### 추가
+    - (구현된 내용)
+
+    ### 수정
+    - (변경된 내용, 없으면 생략)
+
+    ### 삭제
+    - (삭제된 내용, 없으면 생략)
+
+    ---
+
+    ## ✅ 테스트 실행 결과
+
+    > PR 생성 전 로컬에서 모두 실행 후 결과를 기록합니다.
+
+    ### Server 단위 테스트 (`./gradlew test`)
+    - [x] 통과
+    - 실행 결과: `Tests run: N, Failures: 0, Errors: 0`
+
+    ### Server 통합 테스트 (`./gradlew integrationTest`, MySQL)
+    - [x] 통과 / 해당 없음
+    - 실행 결과: `Tests run: N, Failures: 0, Errors: 0`
+
+    ### Client 단위 테스트 (`npm test`)
+    - [x] 통과 / 해당 없음
+    - 실행 결과: `N passed, 0 failed`
+
+    ### E2E 테스트 (`cd client && npx playwright test`)
+    - [x] 통과 / 일부 실패 / 해당 없음
+    - 실행 결과: `N passed, N failed`
+    - 실패 항목 (있는 경우): (설명)
+
+    ---
+
+    ## 🤖 AI 코드 리뷰 체크리스트
+
+    > PR 생성 전 Claude Code가 로컬에서 코드를 검토하고 체크합니다.
+    > Copilot, CodeRabbit 등 외부 AI 리뷰어는 리뷰 완료 후 코멘트로 결과를 요약합니다.
+
+    - [x/] **DDD 계층 준수** — Controller → Service → Domain 방향 의존성 유지, Repository 직접 호출 없음
+    - [x/] **REST/STOMP 역할 분리** — 실시간 메시지는 STOMP(`/app`), 조회/등록은 REST
+    - [x/] **Entity 직접 반환 금지** — API 응답은 반드시 DTO 사용
+    - [x/] **인수 조건(AC) 충족** — 관련 SPEC의 모든 AC 항목 구현 여부 확인
+    - [x/] **예외 처리** — GlobalExceptionHandler를 통한 일관된 오류 응답
+    - [x/] **테스트 커버리지** — 변경된 로직에 대한 단위 테스트 존재
+    ```
 - **동작:** 코드 수정 전 기존 구조를 분석하고, 대규모 변경 시 사용자에게 계획을 먼저 공유합니다.
 - **테스트 실행 (필수):** 기능 구현, 리팩토링, 코드 변경이 완료되면 변경된 부분과 관련된 단위 테스트(Unit Test) 및 E2E 테스트를 반드시 실행하고 결과를 확인합니다. 테스트가 실패하면 수정 후 재실행하여 모든 테스트가 통과할 때까지 작업을 완료로 간주하지 않습니다.
 
