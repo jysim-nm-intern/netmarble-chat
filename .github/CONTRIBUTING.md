@@ -60,22 +60,42 @@ Closes #7
 
 ---
 
-## 브랜치 네이밍
+## 브랜치 전략
 
 ```
-feature/phase-1/{기능명}   # 기능 구현
-fix/phase-1/{버그명}       # 버그 수정
-test/phase-1/{테스트명}    # 테스트 작성
-docs/phase-1/{문서명}      # 문서 작업
+main
+└── phase-{N}          # Phase Epic 브랜치 (Phase 완료 시 main으로 머지)
+    ├── feature/phase-{N}/{기능명}   # 기능 구현
+    ├── fix/phase-{N}/{버그명}       # 버그 수정
+    ├── test/phase-{N}/{테스트명}    # 테스트 작성
+    └── docs/phase-{N}/{문서명}      # 문서 작업
 ```
+
+- feature/* 브랜치는 반드시 `phase-{N}` 브랜치로 PR을 올립니다.
+- `phase-{N}` 브랜치는 해당 Phase의 모든 기능이 완료된 후 `main`으로 머지합니다.
 
 예시:
 ```
-feature/phase-1/stomp-message
-feature/phase-1/chatroom-join
-fix/phase-1/unread-count
-test/phase-1/user-service
+feature/phase-1/stomp-message  →  phase-1  →  main (Phase 1 완료 시)
+feature/phase-1/chatroom-join  →  phase-1
+fix/phase-1/unread-count       →  phase-1
+test/phase-1/user-service      →  phase-1
 ```
+
+---
+
+## 머지 전략 (Merge Strategy)
+
+PR 타입에 따라 GitHub 머지 방법을 다르게 선택합니다.
+
+| PR 방향 | 머지 방법 | 이유 |
+|---------|-----------|------|
+| `feature/*` → `phase-{N}` | **Squash and merge** | 개발 중 커밋을 단일 커밋으로 정리, phase 브랜치 히스토리 간결화 |
+| `chore/*` → `main` | **Create a merge commit** | 설정·인프라 변경 시점을 main 히스토리에 명확히 기록 |
+| `phase-{N}` → `main` | **Create a merge commit** | Phase 완료 시점이 이정표(milestone)로 남아야 함 |
+
+> GitHub 저장소 Settings → General → Pull Requests 에서 각 전략을 활성화할 수 있습니다.
+> `feature/*` PR은 항상 **Squash and merge**, `→ main` PR은 항상 **Create a merge commit** 을 선택합니다.
 
 ---
 
