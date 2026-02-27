@@ -128,6 +128,7 @@
     > PR 생성 전 Claude Code가 로컬에서 코드를 검토하고 체크합니다.
     > Copilot, CodeRabbit 등 외부 AI 리뷰어는 리뷰 완료 후 코멘트로 결과를 요약합니다.
 
+    - [x/] **보안 검토** — `/security-review` 실행, SQL Injection · XSS · 인증/인가 누락 · 민감 정보 노출 취약점 없음
     - [x/] **DDD 계층 준수** — Controller → Service → Domain 방향 의존성 유지, Repository 직접 호출 없음
     - [x/] **REST/STOMP 역할 분리** — 실시간 메시지는 STOMP(`/app`), 조회/등록은 REST
     - [x/] **Entity 직접 반환 금지** — API 응답은 반드시 DTO 사용
