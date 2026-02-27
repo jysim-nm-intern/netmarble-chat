@@ -221,7 +221,7 @@ public class ChatRoomApplicationService {
         );
         Message savedSystemMessage = messageRepository.save(systemMessage);
         
-        // WebSocket을 통해 실시간으로 브로드캠스트
+        // WebSocket을 통해 실시간으로 브로드캐스트
         MessageResponse response = MessageResponse.from(savedSystemMessage);
         messagingTemplate.convertAndSend(
             "/topic/chatroom/" + chatRoom.getId(),
