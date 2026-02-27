@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * ChatController 검색 엔드포인트 테스트
  */
 @WebMvcTest(ChatController.class)
-class MessageSearchControllerTest {
+class ChatControllerSearchTest {
 
     @Autowired
     private MockMvc mockMvc;
