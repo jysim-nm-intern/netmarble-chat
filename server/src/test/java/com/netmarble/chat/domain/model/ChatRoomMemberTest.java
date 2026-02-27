@@ -34,6 +34,12 @@ class ChatRoomMemberTest {
         return message;
     }
 
+    private void setSentAt(Message message, java.time.LocalDateTime sentAt) throws Exception {
+        Field field = Message.class.getDeclaredField("sentAt");
+        field.setAccessible(true);
+        field.set(message, sentAt);
+    }
+
     @Test
     void 생성시_활성상태_온라인_기본값() {
         assertTrue(member.isActive());
@@ -105,8 +111,11 @@ class ChatRoomMemberTest {
 
     @Test
     void updateLastReadMessage_오래된_메시지는_업데이트_안함() throws Exception {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
         Message newer = createMessage(2L, "최신 메시지");
+        setSentAt(newer, now.plusMinutes(1));   // 더 최신 시각 (명시적 설정)
         Message older = createMessage(1L, "오래된 메시지");
+        setSentAt(older, now.minusMinutes(1));  // 더 오래된 시각 (명시적 설정)
 
         // 먼저 최신 메시지로 업데이트
         member.updateLastReadMessage(newer);
