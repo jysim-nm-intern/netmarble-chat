@@ -314,23 +314,45 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
     // 1. 멤버 정보에서 해당 사용자의 lastReadMessageId 업데이트
     setMembers(prevMembers => {
       const targetMember = prevMembers.find(member => member.userId === readStatusData.userId);
-      
+
       // lastReadMessageId가 변경되지 않았으면 재계산 건너뜀
       if (targetMember && targetMember.lastReadMessageId === readStatusData.lastReadMessageId) {
         console.log(`[ChatRoomView] 멤버 ${targetMember.nickname}의 lastReadMessageId 변경 없음, 재계산 건너뜀`);
         return prevMembers;
       }
-      
+
+      let oldLastReadMessageId = null;
       const updatedMembers = prevMembers.map(member => {
         if (member.userId === readStatusData.userId) {
+          oldLastReadMessageId = member.lastReadMessageId ?? null;
           console.log(`[ChatRoomView] 멤버 ${member.nickname}의 lastReadMessageId: ${member.lastReadMessageId} -> ${readStatusData.lastReadMessageId}`);
           return { ...member, lastReadMessageId: readStatusData.lastReadMessageId };
         }
         return member;
       });
+      const newLastReadMessageId = readStatusData.lastReadMessageId;
       
-      // 2. 업데이트된 멤버 정보로 모든 메시지의 unreadCount 재계산
-      setMessages(prevMessages => recalculateUnreadCounts(prevMessages, updatedMembers));
+      // 2. 영향받는 범위(oldLastReadMessageId < message.id <= newLastReadMessageId)의 메시지만 unreadCount 재계산
+      // oldLastReadMessageId가 null이면 이전에 아무것도 읽지 않은 상태이므로 id <= newLastReadMessageId 전체가 대상
+      if (newLastReadMessageId && (oldLastReadMessageId === null || oldLastReadMessageId < newLastReadMessageId)) {
+        setMessages(prevMessages =>
+          prevMessages.map(message => {
+            if (!message.senderId) return message;
+            const isInAffectedRange = oldLastReadMessageId === null
+              ? message.id <= newLastReadMessageId
+              : message.id > oldLastReadMessageId && message.id <= newLastReadMessageId;
+            if (isInAffectedRange) {
+              const unreadCount = updatedMembers.filter(member =>
+                member.active &&
+                member.userId !== message.senderId &&
+                (!member.lastReadMessageId || member.lastReadMessageId < message.id)
+              ).length;
+              return { ...message, unreadCount };
+            }
+            return message;
+          })
+        );
+      }
       
       return updatedMembers;
     });
