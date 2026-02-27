@@ -47,14 +47,14 @@ jobs:
         SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.H2Dialect
         SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
 
-    - name: 백엔드 시작 대기 (최대 90초)
+    - name: 백엔드 시작 대기 (최대 5분)
       run: |
-        for i in $(seq 1 45); do
+        for i in $(seq 1 150); do
           if curl -s http://localhost:8080 > /dev/null 2>&1; then
             echo "백엔드 시작 완료"
             exit 0
           fi
-          echo "대기 중... ($i/45)"
+          echo "대기 중... ($i/150)"
           sleep 2
         done
         echo "백엔드 시작 타임아웃 - 로그:"
