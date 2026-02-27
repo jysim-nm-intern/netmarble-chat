@@ -277,6 +277,192 @@ AI가 생성한 코드를 검토할 때 다음 항목을 확인한다.
 
 ---
 
+## GitHub 코드 품질 자동화 (보안 검토 · 코드 리뷰)
+
+이 프로젝트는 PR 머지 전 코드 품질을 두 단계로 검증합니다.
+
+```
+[로컬 개발 완료]
+       ↓
+① /security-review 수동 실행 (PR 생성 전 1차 자가 검증)
+       ↓
+[PR 생성]
+       ↓
+② GitHub Actions: claude-code-security-review (자동 보안 검토)
+③ GitHub Actions: claude-code-action         (코드 리뷰, 라벨 트리거)
+       ↓
+[리뷰 반영 후 머지]
+```
+
+---
+
+### ① PR 생성 전: `/security-review` 수동 실행
+
+**목적:** PR을 올리기 전에 개발자가 직접 보안 취약점을 사전 점검합니다.
+
+**실행 방법:**
+
+1. Claude Code CLI가 열려 있는 상태에서 프로젝트 루트에서 실행합니다.
+2. 슬래시 명령어를 입력합니다:
+
+```
+/security-review
+```
+
+3. Claude Code가 변경된 파일을 분석하여 아래 항목을 검토합니다.
+
+**검토 항목:**
+
+| 카테고리 | 검토 내용 |
+|---------|----------|
+| **인증/인가** | 인증 없이 접근 가능한 엔드포인트, 권한 우회 가능성 |
+| **SQL 인젝션** | JPA Native Query 또는 문자열 조합 쿼리 취약점 |
+| **XSS** | 사용자 입력값의 HTML 이스케이프 미처리 |
+| **파일 업로드** | 파일 타입·사이즈 검증 누락, 경로 조작(Path Traversal) |
+| **민감 정보 노출** | API 응답에 패스워드·토큰·내부 스택트레이스 포함 여부 |
+| **STOMP 접근 제어** | WebSocket 구독 경로(`/topic`)의 무단 접근 가능성 |
+
+**판단 기준:**
+
+- **Critical / High** 이슈 발견 시: 즉시 수정 후 재검토 → PR 생성
+- **Medium / Low** 이슈 발견 시: 수정 계획을 PR 본문에 기재하고 PR 생성 가능
+- **이슈 없음**: PR 생성 진행
+
+> **주의:** `/security-review`는 로컬 Claude Code에서 실행되므로 API 키가 설정되어 있어야 합니다. (`ANTHROPIC_API_KEY` 환경변수 또는 `claude config`)
+
+---
+
+### ② PR 생성 시 자동화: `claude-code-security-review` (GitHub Actions)
+
+**트리거:** PR이 `opened`, `synchronize`, `reopened` 될 때 자동 실행됩니다.
+
+**워크플로우 파일:** [`.github/workflows/claude-security-review.yml`](../../.github/workflows/claude-security-review.yml)
+
+```yaml
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+```
+
+**동작 흐름:**
+
+```
+PR 이벤트 발생
+       ↓
+actions/checkout (변경된 커밋 체크아웃)
+       ↓
+anthropics/claude-code-security-review@main 실행
+  - 변경된 파일 전체 보안 분석
+  - OWASP Top 10 기준 취약점 스캔
+       ↓
+결과를 PR 댓글로 자동 게시 (comment-pr: true)
+결과를 아티팩트로 업로드  (upload-results: true)
+```
+
+**결과 확인:**
+
+- PR의 **Conversation 탭** → Claude Security Review 봇 댓글에서 상세 결과 확인
+- **Actions 탭** → 해당 워크플로우 실행 → Artifacts에서 결과 파일 다운로드 가능
+
+**필요한 설정:**
+
+```
+GitHub Repository → Settings → Secrets and variables → Actions
+→ ANTHROPIC_API_KEY 등록 필요
+```
+
+**결과 처리 기준:**
+
+| 심각도 | 처리 방법 |
+|-------|---------|
+| Critical | PR 머지 차단, 반드시 수정 후 재푸시 |
+| High | 수정 권장, 수정 불가 시 팀 리뷰어 동의 필요 |
+| Medium / Low | PR 본문 또는 댓글에 인지 여부 기재 후 머지 가능 |
+
+---
+
+### ③ PR 코드 리뷰: `claude-code-action` (GitHub Actions, 라벨 트리거)
+
+**트리거:** PR에 `claude-review` 라벨이 추가될 때 실행됩니다. (토큰 절감을 위해 라벨 방식 채택)
+
+**워크플로우 파일:** [`.github/workflows/claude-review.yml`](../../.github/workflows/claude-review.yml)
+
+**사용 방법:**
+
+```
+1. PR 생성 → 보안 검토(②) 완료 확인
+2. PR 우측 Labels 패널에서 'claude-review' 라벨 추가
+3. GitHub Actions가 자동으로 코드 리뷰 실행
+4. PR Conversation 탭에서 Claude의 리뷰 댓글 확인
+5. 지적 사항 반영 후 재푸시하면 sticky comment가 업데이트됨
+```
+
+**리뷰 대상 경로:**
+
+```
+✅ 포함 (리뷰 대상)
+  server/src/main/java/
+  server/src/test/java/
+  client/src/components/
+  client/src/api/
+  client/src/store/
+  client/src/hooks/
+
+❌ 제외 (인프라·설정 파일)
+  .github/
+  *.yml / *.yaml
+  *.properties
+  build.gradle / package.json
+  vite.config.*
+```
+
+**리뷰 기준 (5개 항목):**
+
+| # | 항목 | 설명 |
+|---|------|------|
+| 1 | **DDD 계층 준수** | Controller → Service → Domain 방향 의존성, Repository 직접 호출 금지 |
+| 2 | **REST/STOMP 역할 분리** | 실시간 메시지는 STOMP(`/app`), 조회/등록은 REST |
+| 3 | **Entity 직접 반환 금지** | API 응답은 반드시 DTO 사용 |
+| 4 | **보안** | SQL 인젝션, XSS, 파일 업로드 취약점, 민감 정보 노출 |
+| 5 | **인수 조건(AC) 충족** | 관련 SPEC의 AC 항목 구현 여부 |
+
+**특징:**
+
+- 문제가 발견되면 **수정 코드를 Suggestion 형태**로 직접 제안 → PR에서 원클릭으로 적용 가능
+- `use_sticky_comment: true` 설정으로 재푸시 시 기존 댓글을 업데이트 (댓글 누적 방지)
+
+**필요한 설정:**
+
+```
+GitHub Repository → Settings → Secrets and variables → Actions
+→ ANTHROPIC_API_KEY 등록 필요
+
+GitHub Repository → Settings → Actions → General
+→ Workflow permissions: "Read and write permissions" 설정
+→ "Allow GitHub Actions to create and approve pull requests" 체크
+```
+
+---
+
+### PR 체크리스트 통합 흐름
+
+PR 템플릿([`.github/pull_request_template.md`](../../.github/pull_request_template.md))의 **Claude 코드 리뷰 체크리스트** 항목과 자동화 도구를 연계하여 확인합니다.
+
+```
+PR 생성 전 (로컬)                PR 생성 후 (GitHub Actions)
+─────────────────────           ──────────────────────────────
+① /security-review 실행          ② claude-code-security-review 자동 실행
+  → Critical/High 이슈 없음 확인    → PR 댓글로 결과 게시
+                                 ③ 'claude-review' 라벨 추가
+                                    → 코드 리뷰 댓글 + Suggestion 제안
+                                    → PR 체크리스트 항목 수동 체크
+                                 ④ 모든 항목 통과 → 머지
+```
+
+> CI 단계(단위 테스트·통합 테스트·E2E 테스트)는 별도 워크플로우(`ci-server.yml`, `ci-client.yml`, `playwright.yml`)에서 병렬로 실행됩니다.
+
+---
+
 ## 개발 흐름 요약
 
 ```

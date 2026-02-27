@@ -247,7 +247,7 @@ function ChatRoomList({ user, filter = 'all', onSelectChatRoom, onTotalUnreadCha
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
             d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
-        <p className="text-sm font-medium">아직 채팅방이 없습니다</p>
+        <p className="text-sm font-medium">채팅방이 없습니다</p>
         {filter === 'all' && <p className="text-xs mt-1">첫 번째 채팅방을 만들어보세요!</p>}
       </div>
     );

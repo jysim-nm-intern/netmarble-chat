@@ -20,41 +20,31 @@
 
 ## ✅ 테스트 실행 결과
 
+> **PR 생성 전 로컬에서 모두 실행 후 결과를 기록합니다.**
+
 ### Server 단위 테스트 (`./gradlew test`)
 - [ ] 통과
-- 실행 결과:
-```
-BUILD SUCCESS / FAILED
-Tests run: N, Failures: 0, Errors: 0
-```
+- 실행 결과: `Tests run: N, Failures: 0, Errors: 0`
 
 ### Server 통합 테스트 (`./gradlew integrationTest`, MySQL)
 - [ ] 통과 / 해당 없음
-- 실행 결과:
-```
-BUILD SUCCESS / FAILED
-Tests run: N, Failures: 0, Errors: 0
-```
+- 실행 결과: `Tests run: N, Failures: 0, Errors: 0`
 
 ### Client 단위 테스트 (`npm test`)
 - [ ] 통과 / 해당 없음
-- 실행 결과:
-```
-N passed, 0 failed
-```
+- 실행 결과: `N passed, 0 failed`
 
-### E2E 테스트 (Playwright)
-- [ ] 통과 / 해당 없음
-- 실행 결과:
-```
-N passed, 0 failed
-```
+### E2E 테스트 (`cd client && npx playwright test`)
+- [ ] 통과 / 일부 실패 / 해당 없음
+- 실행 결과: `N passed, N failed`
+- 실패 항목 (있는 경우):
 
 ---
 
 ## 🤖 AI 코드 리뷰 체크리스트
 
-> Copilot, Claude, CodeRabbit 등 AI 리뷰어가 코드 리뷰 후 아래 항목을 체크합니다.
+> **PR 생성 전 Claude Code가 로컬에서 코드를 검토하고 체크합니다.**
+> Copilot, CodeRabbit 등 외부 AI 리뷰어는 리뷰 완료 후 코멘트로 결과를 요약합니다.
 
 - [ ] **DDD 계층 준수** — Controller → Service → Domain 방향 의존성 유지, Repository 직접 호출 없음
 - [ ] **REST/STOMP 역할 분리** — 실시간 메시지는 STOMP(`/app`), 조회/등록은 REST

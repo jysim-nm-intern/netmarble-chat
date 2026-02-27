@@ -37,7 +37,7 @@ describe('ChatRoomList', () => {
     });
 
     expect(
-      await screen.findByText('아직 채팅방이 없습니다')
+      await screen.findByText('채팅방이 없습니다')
     ).toBeInTheDocument();
   });
 });
