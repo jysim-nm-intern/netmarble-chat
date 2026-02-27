@@ -313,6 +313,14 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
     
     // 1. 멤버 정보에서 해당 사용자의 lastReadMessageId 업데이트
     setMembers(prevMembers => {
+      const targetMember = prevMembers.find(member => member.userId === readStatusData.userId);
+      
+      // lastReadMessageId가 변경되지 않았으면 재계산 건너뜀
+      if (targetMember && targetMember.lastReadMessageId === readStatusData.lastReadMessageId) {
+        console.log(`[ChatRoomView] 멤버 ${targetMember.nickname}의 lastReadMessageId 변경 없음, 재계산 건너뜀`);
+        return prevMembers;
+      }
+      
       const updatedMembers = prevMembers.map(member => {
         if (member.userId === readStatusData.userId) {
           console.log(`[ChatRoomView] 멤버 ${member.nickname}의 lastReadMessageId: ${member.lastReadMessageId} -> ${readStatusData.lastReadMessageId}`);
