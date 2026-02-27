@@ -2,12 +2,12 @@ name: Client Unit Tests
 
 on:
   push:
-    branches: [ main, master, phase-* ]
+    branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
       - 'client/src/**'
       - 'client/package*.json'
   pull_request:
-    branches: [ main, master, phase-* ]
+    branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
       - 'client/src/**'
       - 'client/package*.json'
