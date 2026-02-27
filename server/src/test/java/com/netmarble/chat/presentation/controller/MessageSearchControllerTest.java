@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * ChatController 검색 엔드포인트 테스트
+ * ChatController의 메시지 검색 엔드포인트 테스트
  */
 @WebMvcTest(ChatController.class)
 class ChatControllerSearchTest {
