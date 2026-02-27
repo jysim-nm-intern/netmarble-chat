@@ -84,6 +84,21 @@ test/phase-1/user-service      →  phase-1
 
 ---
 
+## 머지 전략 (Merge Strategy)
+
+PR 타입에 따라 GitHub 머지 방법을 다르게 선택합니다.
+
+| PR 방향 | 머지 방법 | 이유 |
+|---------|-----------|------|
+| `feature/*` → `phase-{N}` | **Squash and merge** | 개발 중 커밋을 단일 커밋으로 정리, phase 브랜치 히스토리 간결화 |
+| `chore/*` → `main` | **Create a merge commit** | 설정·인프라 변경 시점을 main 히스토리에 명확히 기록 |
+| `phase-{N}` → `main` | **Create a merge commit** | Phase 완료 시점이 이정표(milestone)로 남아야 함 |
+
+> GitHub 저장소 Settings → General → Pull Requests 에서 각 전략을 활성화할 수 있습니다.
+> `feature/*` PR은 항상 **Squash and merge**, `→ main` PR은 항상 **Create a merge commit** 을 선택합니다.
+
+---
+
 ## PR 제목
 
 ```
