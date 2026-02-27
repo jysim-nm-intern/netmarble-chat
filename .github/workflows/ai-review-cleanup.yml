@@ -1,0 +1,192 @@
+name: AI Review Smart Cleanup
+
+on:
+  pull_request:
+    # PR이 새로 열리거나, 커밋이 추가되거나, 닫혔다 다시 열릴 때 실행
+    types: [opened, synchronize, reopened]
+
+# [권고 3] 동일 PR의 이전 실행을 취소해 중복 실행 및 불필요한 API 호출 방지
+concurrency:
+  group: ai-review-cleanup-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  smart-cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Cleanup Stale AI Comments
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            /**
+             * 봇 계정 판별: GitHub 봇은 로그인명이 '[bot]'으로 끝남
+             * 예) copilot[bot], github-actions[bot], coderabbitai[bot]
+             * login이 null/undefined인 경우(삭제된 사용자 등)도 안전하게 처리
+             */
+            function isBot(login) {
+              return login != null && login.endsWith('[bot]');
+            }
+
+            // [권고 1] cursor 기반 페이지네이션으로 100개 이상의 스레드/코멘트 누락 방지
+            const threadQuery = `
+              query($owner: String!, $repo: String!, $prNumber: Int!, $threadCursor: String) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $prNumber) {
+                    reviewThreads(first: 100, after: $threadCursor) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        id
+                        isResolved
+                        comments(first: 50) {
+                          # 첫 페이지만 가져오고, 50개 초과 시 commentQuery로 추가 페이지 처리
+                          pageInfo { hasNextPage endCursor }
+                          nodes {
+                            id
+                            # databaseId: deprecated이지만 REST API deleteReviewComment()가
+                            # 숫자 ID를 요구하므로 사용 불가피
+                            databaseId
+                            author { login }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const commentQuery = `
+              query($threadId: ID!, $commentCursor: String) {
+                node(id: $threadId) {
+                  ... on PullRequestReviewThread {
+                    comments(first: 50, after: $commentCursor) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        id
+                        databaseId
+                        author { login }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            // 스레드 전체를 페이지네이션으로 수집
+            const allThreads = [];
+            let threadCursor = null;
+
+            do {
+              const result = await github.graphql(threadQuery, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                prNumber: context.payload.pull_request.number,
+                threadCursor
+              });
+              const page = result.repository.pullRequest.reviewThreads;
+
+              // 각 스레드의 코멘트도 페이지네이션 처리
+              for (const thread of page.nodes) {
+                let comments = [...thread.comments.nodes];
+                let commentPageInfo = thread.comments.pageInfo;
+
+                // Resolved 스레드는 추가 페이지 조회 불필요 — 어차피 보존 대상
+                while (!thread.isResolved && commentPageInfo.hasNextPage) {
+                  const commentResult = await github.graphql(commentQuery, {
+                    threadId: thread.id,
+                    commentCursor: commentPageInfo.endCursor
+                  });
+                  const commentPage = commentResult.node.comments;
+                  comments = comments.concat(commentPage.nodes);
+                  commentPageInfo = commentPage.pageInfo;
+                }
+
+                allThreads.push({ ...thread, allComments: comments });
+              }
+
+              threadCursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+            } while (threadCursor);
+
+            console.log(`총 ${allThreads.length}개의 리뷰 스레드를 분석합니다.`);
+
+            let deletedCount = 0;
+            let failedCount = 0;
+
+            for (const thread of allThreads) {
+              const comments = thread.allComments;
+              if (comments.length === 0) continue;
+
+              // ✅ 보존 규칙 1: Resolved(해결됨) 스레드 — 수정 완료된 유의미한 기록
+              if (thread.isResolved) continue;
+
+              // ✅ 보존 규칙 2: 사람이 답글을 단 스레드 — 진행 중인 토론, 맥락 유지
+              // author가 null인 경우(삭제된 사용자)는 봇이 아닌 것으로 간주해 보존
+              const hasHumanReply = comments.some(c => !isBot(c.author?.login));
+              if (hasHumanReply) continue;
+
+              // 🗑️ 삭제 대상: 봇이 시작했고, 미해결이며, 사람 개입이 없는 고립된 스레드
+              const firstAuthor = comments[0]?.author?.login;
+              if (!firstAuthor || !isBot(firstAuthor)) continue;
+
+              console.log(`삭제 대상 발견: 봇 단독 미해결 스레드 (코멘트 ${comments.length}개, 작성자: ${firstAuthor})`);
+
+              for (const comment of comments) {
+                try {
+                  await github.rest.pulls.deleteReviewComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: comment.databaseId
+                  });
+                  console.log(`삭제 완료: 코멘트 #${comment.databaseId}`);
+                  deletedCount++;
+                } catch (e) {
+                  // [권고 2] 에러 상태 코드별 분기 처리
+                  const status = e.status ?? e.response?.status ?? null;
+
+                  if (status === 404) {
+                    // 이미 삭제된 코멘트 — 정상, 무시
+                    console.log(`코멘트 #${comment.databaseId}는 이미 삭제됨, 건너뜁니다.`);
+                    continue;
+                  }
+
+                  if (status === 403 || status === 401) {
+                    // 권한 부족 — Minimize(숨김)으로 폴백
+                    // 참고: minimize도 동일 권한 문제로 실패할 수 있으며, 실패 시 로그만 남김
+                    console.log(`삭제 권한 없음 (HTTP ${status}), Minimize 처리 시도 중...`);
+                    try {
+                      await github.graphql(`
+                        mutation($subjectId: ID!) {
+                          minimizeComment(input: { subjectId: $subjectId, classifier: OUTDATED }) {
+                            minimizedComment { isMinimized }
+                          }
+                        }
+                      `, { subjectId: comment.id });
+                      console.log(`Minimize 처리 완료: 코멘트 #${comment.databaseId}`);
+                    } catch (me) {
+                      console.log(`Minimize도 실패: ${me.message}`);
+                      failedCount++;
+                    }
+                  } else {
+                    // 일시적 오류(5xx 등) — 재시도 없이 로그만 남김
+                    console.log(`일시적 오류 (HTTP ${status ?? 'unknown'}), 건너뜁니다: ${e.message}`);
+                    failedCount++;
+                  }
+                }
+              }
+            }
+
+            // Job Summary에 실행 결과 출력
+            await core.summary
+              .addHeading('AI 리뷰 클린업 결과')
+              .addTable([
+                [{ data: '항목', header: true }, { data: '수량', header: true }],
+                ['분석한 스레드', String(allThreads.length)],
+                ['삭제 성공', String(deletedCount)],
+                ['실패/건너뜀', String(failedCount)]
+              ])
+              .write();
