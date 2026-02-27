@@ -14,11 +14,11 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests/e2e',
-  /* 테스트 타임아웃: 미구현 기능 대기 시간 최소화 */
-  timeout: 10000,
+  /* 테스트 타임아웃: Firefox 및 멀티 컨텍스트 시나리오 커버 */
+  timeout: 30000,
   /* 전역 expect 타임아웃 */
   expect: {
-    timeout: 5000,
+    timeout: 10000,
   },
   /* Run tests in files in parallel */
   fullyParallel: true,
@@ -26,8 +26,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* CI에서는 재시도 없음: 미구현 테스트 실패 시 불필요한 시간 낭비 방지 */
   retries: 0,
-  /* CI에서 병렬 실행 */
-  workers: process.env.CI ? 2 : undefined,
+  /* 백엔드 과부하 방지: CI 2, 로컬 4 (기본값 CPU/2 사용 시 Firefox WebSocket 타임아웃 발생) */
+  workers: process.env.CI ? 2 : 4,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
