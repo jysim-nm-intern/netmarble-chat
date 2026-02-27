@@ -137,7 +137,7 @@ class MessageSearchIntegrationTest {
     }
 
     @Test
-    void searchByChatRoomIdAndKeyword_IgnorsDeletedMessages() {
+    void searchByChatRoomIdAndKeyword_IgnoresDeletedMessages() {
         // 테스트 메시지 생성
         Message msg1 = messageRepository.save(new Message(chatRoom, user1, "hello world"));
         Message msg2 = messageRepository.save(new Message(chatRoom, user2, "hello there"));
