@@ -2,14 +2,14 @@ name: Server Tests
 
 on:
   push:
-    branches: [ main, master, phase-* ]
+    branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
       - 'server/src/**'
       - 'server/build.gradle'
       - 'server/settings.gradle'
       - 'server/gradle/**'
   pull_request:
-    branches: [ main, master, phase-* ]
+    branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
       - 'server/src/**'
       - 'server/build.gradle'
