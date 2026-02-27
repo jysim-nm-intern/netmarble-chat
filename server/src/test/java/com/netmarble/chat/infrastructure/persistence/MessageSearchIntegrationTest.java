@@ -17,9 +17,10 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 메시지 검색 기능 통합 테스트 (로컬 MySQL)
- * 사전 조건: MySQL이 localhost:3306에서 실행 중이어야 합니다.
- * DB 설정: src/test/resources/application.properties (netmarble_chat_test, create-drop)
+ * 메시지 검색 기능 통합 테스트.
+ *
+ * 기본적으로 src/test/resources/application.properties 에 정의된 H2(in-memory) DB 설정을 사용합니다.
+ * 실제 MySQL 환경에서 검증하려면 환경 변수 또는 별도 Spring Profile을 통해 데이터소스 설정을 오버라이드하세요.
  */
 @Tag("integration")
 @SpringBootTest
