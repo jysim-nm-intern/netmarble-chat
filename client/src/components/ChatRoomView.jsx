@@ -706,7 +706,9 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
                 activeMembers={
                   otherMembers.length > 0
                     ? otherMembers.slice(0, 4)
-                    : [{ profileImage: user.profileImage, profileColor: user.profileColor, nickname: user.nickname }]
+                    : activeMembers.length === 1
+                      ? [{ profileImage: user.profileImage, profileColor: user.profileColor, nickname: user.nickname }]
+                      : []
                 }
               />
             )}
