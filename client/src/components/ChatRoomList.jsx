@@ -279,7 +279,13 @@ function ChatRoomList({ user, filter = 'all', onSelectChatRoom, onTotalUnreadCha
             ) : (
               <AvatarGroup
                 memberCount={room.memberCount || 0}
-                avatars={room.memberAvatars || []}
+                avatars={
+                  (room.memberAvatars?.length > 0)
+                    ? room.memberAvatars
+                    : (room.memberCount === 1)
+                      ? [{ profileImage: user.profileImage, profileColor: user.profileColor, nickname: user.nickname }]
+                      : []
+                }
               />
             )}
 

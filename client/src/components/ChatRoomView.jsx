@@ -702,7 +702,15 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
                 <img src={chatRoom.imageUrl} alt={`${chatRoom.name} 채팅방 이미지`} className="w-full h-full object-cover" />
               </div>
             ) : (
-              <HeaderAvatarGroup activeMembers={otherMembers.slice(0, 4)} />
+              <HeaderAvatarGroup
+                activeMembers={
+                  otherMembers.length > 0
+                    ? otherMembers.slice(0, 4)
+                    : activeMembers.length === 1
+                      ? [{ profileImage: user.profileImage, profileColor: user.profileColor, nickname: user.nickname }]
+                      : []
+                }
+              />
             )}
             <div className="min-w-0">
               <h2 className="text-sm font-bold text-[#5d4037] truncate leading-tight">
