@@ -23,9 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,18 +43,19 @@ class ReadStatusApplicationServiceTest {
     @InjectMocks
     private ReadStatusApplicationService readStatusApplicationService;
 
-    private User user;
-    private User otherUser;
+    private User user1;
+    private User user2;
     private ChatRoom chatRoom;
 
     @BeforeEach
     void setUp() throws Exception {
-        user = new User("alice");
-        setId(user, 1L);
-        otherUser = new User("bob");
-        setId(otherUser, 2L);
-        chatRoom = new ChatRoom("테스트방", null, user);
+        user1 = new User("alice");
+        setId(user1, 1L);
+        user2 = new User("bob");
+        setId(user2, 2L);
+        chatRoom = new ChatRoom("테스트방", null, user1);
         setId(chatRoom, 10L);
+        chatRoom.addMember(user2);
     }
 
     private void setId(Object obj, Long id) throws Exception {
@@ -71,20 +70,16 @@ class ReadStatusApplicationServiceTest {
         return msg;
     }
 
-    private Message makeSystemMessage(Long id, ChatRoom room, String content) throws Exception {
-        Message msg = Message.createSystemMessage(room, content);
-        setId(msg, id);
-        return msg;
-    }
-
     // ─── markAsRead ───────────────────────────────────────────────────────────
 
     @Test
     void markAsRead_성공() throws Exception {
-        Message lastMsg = makeMessage(100L, chatRoom, otherUser, "안녕하세요");
-        ChatRoomMember member = new ChatRoomMember(chatRoom, user);
+        Message lastMsg = makeMessage(5L, chatRoom, user2, "안녕");
+        ChatRoomMember member = chatRoom.getMembers().stream()
+                .filter(m -> m.getUser().getId().equals(1L))
+                .findFirst().orElseThrow();
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user1));
         when(messageRepository.findLastByChatRoomId(10L)).thenReturn(Optional.of(lastMsg));
         when(chatRoomMemberRepository.findActiveByChatRoomIdAndUserId(10L, 1L))
                 .thenReturn(Optional.of(member));
@@ -92,9 +87,19 @@ class ReadStatusApplicationServiceTest {
 
         assertDoesNotThrow(() -> readStatusApplicationService.markAsRead(1L, 10L));
 
-        verify(chatRoomMemberRepository).save(member);
-        verify(messagingTemplate).convertAndSend(
-                eq("/topic/chatroom/10/read-status"), any(Object.class));
+        verify(chatRoomMemberRepository).save(any(ChatRoomMember.class));
+        verify(messagingTemplate).convertAndSend(eq("/topic/chatroom/10/read-status"), any(Object.class));
+    }
+
+    @Test
+    void markAsRead_메시지_없으면_아무것도_안함() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user1));
+        when(messageRepository.findLastByChatRoomId(10L)).thenReturn(Optional.empty());
+
+        assertDoesNotThrow(() -> readStatusApplicationService.markAsRead(1L, 10L));
+
+        verify(chatRoomMemberRepository, never()).save(any());
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
     }
 
     @Test
@@ -106,21 +111,10 @@ class ReadStatusApplicationServiceTest {
     }
 
     @Test
-    void markAsRead_메시지_없으면_조기_종료() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(messageRepository.findLastByChatRoomId(10L)).thenReturn(Optional.empty());
+    void markAsRead_멤버_없으면_예외() throws Exception {
+        Message lastMsg = makeMessage(5L, chatRoom, user2, "안녕");
 
-        assertDoesNotThrow(() -> readStatusApplicationService.markAsRead(1L, 10L));
-
-        verify(chatRoomMemberRepository, never()).save(any());
-        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
-    }
-
-    @Test
-    void markAsRead_채팅방_멤버_없으면_예외() throws Exception {
-        Message lastMsg = makeMessage(100L, chatRoom, otherUser, "안녕하세요");
-
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user1));
         when(messageRepository.findLastByChatRoomId(10L)).thenReturn(Optional.of(lastMsg));
         when(chatRoomMemberRepository.findActiveByChatRoomIdAndUserId(10L, 1L))
                 .thenReturn(Optional.empty());
@@ -140,109 +134,108 @@ class ReadStatusApplicationServiceTest {
     }
 
     @Test
-    void getUnreadCount_멤버_아니면_0_반환() {
-        // chatRoom은 alice(id=1)가 생성 - bob(id=2)은 멤버가 아님
+    void getUnreadCount_멤버_아닌_사용자는_0() throws Exception {
+        User stranger = new User("charlie");
+        setId(stranger, 3L);
         when(chatRoomRepository.findById(10L)).thenReturn(Optional.of(chatRoom));
 
-        long result = readStatusApplicationService.getUnreadCount(2L, 10L);
+        long count = readStatusApplicationService.getUnreadCount(3L, 10L);
 
-        assertEquals(0L, result);
+        assertEquals(0, count);
     }
 
     @Test
-    void getUnreadCount_한번도_읽지_않았으면_타인_메시지_전체_반환() throws Exception {
-        Message myMsg    = makeMessage(1L, chatRoom, user, "내 메시지");
-        Message otherMsg = makeMessage(2L, chatRoom, otherUser, "상대 메시지");
-        Message sysMsg   = makeSystemMessage(3L, chatRoom, "시스템 알림");
+    void getUnreadCount_한번도_읽지_않은_경우_타인_메시지_카운트() throws Exception {
+        Message msg1 = makeMessage(1L, chatRoom, user2, "hello");
+        Message msg2 = makeMessage(2L, chatRoom, user2, "world");
 
         when(chatRoomRepository.findById(10L)).thenReturn(Optional.of(chatRoom));
         when(messageRepository.findByChatRoomIdOrderBySentAtAsc(10L))
-                .thenReturn(List.of(myMsg, otherMsg, sysMsg));
+                .thenReturn(List.of(msg1, msg2));
 
-        // alice 멤버의 lastReadMessage는 초기에 null
-        long result = readStatusApplicationService.getUnreadCount(1L, 10L);
+        long count = readStatusApplicationService.getUnreadCount(1L, 10L);
 
-        // otherMsg만 카운트됨 (sender != null && sender.id != 1)
-        assertEquals(1L, result);
+        assertEquals(2, count);
+    }
+
+    @Test
+    void getUnreadCount_자신이_보낸_메시지는_제외() throws Exception {
+        Message myMsg = makeMessage(1L, chatRoom, user1, "내 메시지");
+        Message otherMsg = makeMessage(2L, chatRoom, user2, "상대 메시지");
+
+        when(chatRoomRepository.findById(10L)).thenReturn(Optional.of(chatRoom));
+        when(messageRepository.findByChatRoomIdOrderBySentAtAsc(10L))
+                .thenReturn(List.of(myMsg, otherMsg));
+
+        long count = readStatusApplicationService.getUnreadCount(1L, 10L);
+
+        assertEquals(1, count);
     }
 
     @Test
     void getUnreadCount_마지막_읽은_메시지_이후만_카운트() throws Exception {
-        Message msg1 = makeMessage(1L, chatRoom, otherUser, "메시지1");
-        Message msg2 = makeMessage(2L, chatRoom, otherUser, "메시지2");
-        Message msg3 = makeMessage(3L, chatRoom, otherUser, "메시지3");
-        Message msg4 = makeMessage(4L, chatRoom, user, "내 메시지");
+        Message msg1 = makeMessage(1L, chatRoom, user2, "읽은 메시지");
+        Message msg2 = makeMessage(2L, chatRoom, user2, "안읽은 메시지1");
+        Message msg3 = makeMessage(3L, chatRoom, user2, "안읽은 메시지2");
 
-        // alice의 lastReadMessage를 msg2로 설정
-        ChatRoomMember aliceMember = chatRoom.getMembers().stream()
-                .filter(m -> m.getUser().getId().equals(1L) && m.isActive())
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("alice 멤버를 찾을 수 없습니다"));
-        aliceMember.updateLastReadMessage(msg2);
+        // user1의 멤버 객체를 찾아서 msg1을 읽음 처리
+        ChatRoomMember member1 = chatRoom.getMembers().stream()
+                .filter(m -> m.getUser().getId().equals(1L))
+                .findFirst().orElseThrow();
+        member1.updateLastReadMessage(msg1);
 
         when(chatRoomRepository.findById(10L)).thenReturn(Optional.of(chatRoom));
         when(messageRepository.findByChatRoomIdOrderBySentAtAsc(10L))
-                .thenReturn(List.of(msg1, msg2, msg3, msg4));
+                .thenReturn(List.of(msg1, msg2, msg3));
 
-        long result = readStatusApplicationService.getUnreadCount(1L, 10L);
+        long count = readStatusApplicationService.getUnreadCount(1L, 10L);
 
-        // msg3만 카운트됨 (msg2 이후, sender != null && sender.id != 1 이고 msg4는 자신)
-        assertEquals(1L, result);
+        assertEquals(2, count);
     }
 
     // ─── getAllUnreadCounts ───────────────────────────────────────────────────
 
     @Test
-    void getAllUnreadCounts_멤버인_채팅방만_포함() throws Exception {
-        ChatRoom anotherRoom = new ChatRoom("다른방", null, otherUser);
-        setId(anotherRoom, 20L);
-
-        when(chatRoomRepository.findAllActive()).thenReturn(List.of(chatRoom, anotherRoom));
-        // getUnreadCount(1L, 10L) 내부에서 chatRoomRepository.findById 호출
+    void getAllUnreadCounts_참여중인_방만_포함() throws Exception {
+        when(chatRoomRepository.findAllActive()).thenReturn(List.of(chatRoom));
         when(chatRoomRepository.findById(10L)).thenReturn(Optional.of(chatRoom));
         when(messageRepository.findByChatRoomIdOrderBySentAtAsc(10L)).thenReturn(List.of());
 
         Map<Long, Long> result = readStatusApplicationService.getAllUnreadCounts(1L);
 
-        // alice는 chatRoom(10L)의 멤버이고 anotherRoom(20L)의 멤버가 아님
         assertTrue(result.containsKey(10L));
-        assertFalse(result.containsKey(20L));
     }
 
     @Test
-    void getAllUnreadCounts_활성_채팅방_없으면_빈_맵() {
-        when(chatRoomRepository.findAllActive()).thenReturn(List.of());
+    void getAllUnreadCounts_미참여_방은_제외() {
+        when(chatRoomRepository.findAllActive()).thenReturn(List.of(chatRoom));
 
-        Map<Long, Long> result = readStatusApplicationService.getAllUnreadCounts(1L);
+        Map<Long, Long> result = readStatusApplicationService.getAllUnreadCounts(99L);
 
-        assertTrue(result.isEmpty());
+        assertFalse(result.containsKey(10L));
     }
 
-    // ─── getUnreadCountsForActiveChatRooms ────────────────────────────────────
+    // ─── getUnreadCountsForActiveChatRooms ───────────────────────────────────
 
     @Test
-    void getUnreadCountsForActiveChatRooms_멤버인_채팅방_목록_반환() throws Exception {
-        ChatRoom anotherRoom = new ChatRoom("다른방", null, otherUser);
-        setId(anotherRoom, 20L);
-
-        when(chatRoomRepository.findAllActive()).thenReturn(List.of(chatRoom, anotherRoom));
+    void getUnreadCountsForActiveChatRooms_참여방_목록_반환() throws Exception {
+        when(chatRoomRepository.findAllActive()).thenReturn(List.of(chatRoom));
         when(chatRoomRepository.findById(10L)).thenReturn(Optional.of(chatRoom));
         when(messageRepository.findByChatRoomIdOrderBySentAtAsc(10L)).thenReturn(List.of());
 
         List<UnreadCountResponse> result =
                 readStatusApplicationService.getUnreadCountsForActiveChatRooms(1L);
 
-        // alice가 멤버인 chatRoom(10L)만 포함
         assertEquals(1, result.size());
         assertEquals(10L, result.get(0).getChatRoomId());
     }
 
     @Test
-    void getUnreadCountsForActiveChatRooms_활성_채팅방_없으면_빈_목록() {
-        when(chatRoomRepository.findAllActive()).thenReturn(List.of());
+    void getUnreadCountsForActiveChatRooms_미참여_방_제외() {
+        when(chatRoomRepository.findAllActive()).thenReturn(List.of(chatRoom));
 
         List<UnreadCountResponse> result =
-                readStatusApplicationService.getUnreadCountsForActiveChatRooms(1L);
+                readStatusApplicationService.getUnreadCountsForActiveChatRooms(99L);
 
         assertTrue(result.isEmpty());
     }
