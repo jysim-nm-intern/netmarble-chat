@@ -3,6 +3,8 @@ package com.netmarble.chat.presentation.controller;
 import com.netmarble.chat.application.dto.*;
 import com.netmarble.chat.application.service.ChatRoomApplicationService;
 import com.netmarble.chat.application.service.MessageApplicationService;
+import com.netmarble.chat.presentation.exception.UnauthorizedException;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * ChatRoom REST API Controller
@@ -28,19 +31,29 @@ public class ChatRoomController {
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
+     * 세션에서 인증된 userId를 추출한다.
+     * 세션이 없거나 userId가 없으면 UnauthorizedException을 던진다.
+     */
+    private Long requireUserId(HttpSession session) {
+        return Optional.ofNullable(session.getAttribute("userId"))
+                .map(o -> (Long) o)
+                .orElseThrow(() -> new UnauthorizedException("로그인이 필요합니다."));
+    }
+
+    /**
      * 채팅방 생성
      * POST /api/chat-rooms
      * Content-Type: multipart/form-data
      * - name (String, 필수)
-     * - creatorId (Long, 필수)
      * - image (MultipartFile, 선택 / JPG·PNG·GIF, 최대 5MB)
      */
     @PostMapping(consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE})
     public ResponseEntity<ChatRoomResponse> createChatRoom(
             @RequestParam String name,
-            @RequestParam Long creatorId,
-            @RequestParam(required = false) MultipartFile image) {
-        log.info("POST /api/chat-rooms - Creating chat room: {}", name);
+            @RequestParam(required = false) MultipartFile image,
+            HttpSession session) {
+        Long creatorId = requireUserId(session);
+        log.info("POST /api/chat-rooms - Creating chat room: {} (creatorId={})", name, creatorId);
 
         String imageUrl = null;
         if (image != null && !image.isEmpty()) {
@@ -75,11 +88,12 @@ public class ChatRoomController {
 
     /**
      * 활성 채팅방 목록 조회 (읽지 않은 메시지 개수 포함)
-     * GET /api/chat-rooms?userId=
+     * GET /api/chat-rooms
+     * 인증된 사용자는 본인 기준 unreadCount를 받는다.
      */
     @GetMapping
-    public ResponseEntity<List<ChatRoomResponse>> getAllActiveChatRooms(
-            @RequestParam(required = false) Long userId) {
+    public ResponseEntity<List<ChatRoomResponse>> getAllActiveChatRooms(HttpSession session) {
+        Long userId = (Long) session.getAttribute("userId"); // nullable — 비인증도 목록 조회 허용
         log.info("GET /api/chat-rooms - Fetching all active chat rooms (userId={})", userId);
         List<ChatRoomResponse> response = chatRoomApplicationService.getAllActiveChatRooms(userId);
         return ResponseEntity.ok(response);
@@ -103,7 +117,8 @@ public class ChatRoomController {
     @PostMapping("/{id}/join")
     public ResponseEntity<ChatRoomResponse> joinChatRoom(
             @PathVariable Long id,
-            @RequestParam Long userId) {
+            HttpSession session) {
+        Long userId = requireUserId(session);
         log.info("POST /api/chat-rooms/{}/join - User {} joining", id, userId);
         JoinChatRoomRequest request = new JoinChatRoomRequest(id, userId);
         ChatRoomResponse response = chatRoomApplicationService.joinChatRoom(request);
@@ -117,7 +132,8 @@ public class ChatRoomController {
     @PostMapping("/{id}/leave")
     public ResponseEntity<Void> leaveChatRoom(
             @PathVariable Long id,
-            @RequestParam Long userId) {
+            HttpSession session) {
+        Long userId = requireUserId(session);
         log.info("POST /api/chat-rooms/{}/leave - User {} leaving", id, userId);
         chatRoomApplicationService.leaveChatRoom(id, userId);
         return ResponseEntity.noContent().build();
@@ -133,7 +149,7 @@ public class ChatRoomController {
         List<ChatRoomMemberResponse> response = chatRoomApplicationService.getActiveChatRoomMembers(id);
         return ResponseEntity.ok(response);
     }
-    
+
     /**
      * 채팅방 멤버 활성 상태 업데이트
      * PUT /api/chat-rooms/{id}/members/status
@@ -141,13 +157,14 @@ public class ChatRoomController {
     @PutMapping("/{id}/members/status")
     public ResponseEntity<Void> updateMemberStatus(
             @PathVariable Long id,
-            @RequestBody UpdateActiveStatusRequest request) {
-        log.info("PUT /api/chat-rooms/{}/members/status - Updating status for user {}", 
-                 id, request.getUserId());
-        chatRoomApplicationService.updateMemberActiveStatus(id, request.getUserId(), request.isOnline());
+            @RequestBody UpdateActiveStatusRequest request,
+            HttpSession session) {
+        Long userId = requireUserId(session);
+        log.info("PUT /api/chat-rooms/{}/members/status - Updating status for user {}", id, userId);
+        chatRoomApplicationService.updateMemberActiveStatus(id, userId, request.isOnline());
         return ResponseEntity.ok().build();
     }
-    
+
     /**
      * 채팅방 멤버 활동 업데이트 (하트비트)
      * POST /api/chat-rooms/{id}/members/heartbeat
@@ -155,7 +172,8 @@ public class ChatRoomController {
     @PostMapping("/{id}/members/heartbeat")
     public ResponseEntity<Void> heartbeat(
             @PathVariable Long id,
-            @RequestParam Long userId) {
+            HttpSession session) {
+        Long userId = requireUserId(session);
         chatRoomApplicationService.updateMemberActivity(id, userId);
         return ResponseEntity.ok().build();
     }
@@ -163,30 +181,29 @@ public class ChatRoomController {
     /**
      * 메시지 전송 (REST API)
      * POST /api/chat-rooms/{id}/messages
-     * Body: { chatRoomId, senderId, content, messageType, fileName }
-     */
-    /**
-     * 메시지 전송 (REST API)
-     * POST /api/chat-rooms/{id}/messages
-     * Body: { chatRoomId, senderId, content, messageType, fileName }
+     * Body: { chatRoomId, content, messageType, fileName }
      */
     @PostMapping("/{id}/messages")
     public ResponseEntity<MessageResponse> sendMessage(
             @PathVariable Long id,
-            @RequestBody SendMessageRequest request) {
-        log.info("POST /api/chat-rooms/{}/messages - Sending message from user {}", 
-                 id, request.getSenderId());
-        
-        // URL 경로의 ID가 요청의 chatRoomId와 일치하는지 검증
+            @RequestBody SendMessageRequest request,
+            HttpSession session) {
+        Long userId = requireUserId(session);
+        log.info("POST /api/chat-rooms/{}/messages - Sending message from user {}", id, userId);
+
+        // URL 경로의 ID로 chatRoomId 설정
         if (request.getChatRoomId() == null) {
             request.setChatRoomId(id);
         } else if (!request.getChatRoomId().equals(id)) {
             log.warn("URL path ID {} does not match request chatRoomId {}", id, request.getChatRoomId());
         }
-        
+
+        // 세션 userId로 senderId 강제 설정 (클라이언트 값 무시)
+        request.setSenderId(userId);
+
         // 메시지 전송
         MessageResponse response = messageApplicationService.sendMessage(request);
-        
+
         // WebSocket으로 브로드캐스트
         try {
             messagingTemplate.convertAndSend(
@@ -197,7 +214,7 @@ public class ChatRoomController {
         } catch (Exception e) {
             log.warn("Failed to broadcast message via WebSocket", e);
         }
-        
+
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -208,44 +225,44 @@ public class ChatRoomController {
     @PostMapping("/{id}/messages/upload")
     public ResponseEntity<MessageResponse> uploadImage(
             @PathVariable Long id,
-            @RequestParam Long userId,
-            @RequestParam(required = false, defaultValue = "0") Long chatRoomId,
-            @RequestParam MultipartFile file) {
+            @RequestParam MultipartFile file,
+            HttpSession session) {
+        Long userId = requireUserId(session);
         try {
-            log.info("POST /api/chat-rooms/{}/messages/upload - User {} uploading image {}", 
+            log.info("POST /api/chat-rooms/{}/messages/upload - User {} uploading image {}",
                      id, userId, file.getOriginalFilename());
-            
+
             // 파일 유효성 검증
             if (file.isEmpty()) {
                 return ResponseEntity.badRequest().build();
             }
-            
+
             // 이미지 파일만 허용
             String contentType = file.getContentType();
             if (contentType == null || !contentType.startsWith("image/")) {
                 throw new IllegalArgumentException("이미지 파일만 업로드 가능합니다.");
             }
-            
+
             // 파일 크기 검증 (7.5MB)
             if (file.getSize() > 7.5 * 1024 * 1024) {
                 throw new IllegalArgumentException("파일 크기가 7.5MB를 초과합니다.");
             }
-            
+
             // 이미지를 Base64로 변환
             byte[] fileBytes = file.getBytes();
             String base64Image = java.util.Base64.getEncoder().encodeToString(fileBytes);
-            
-            // 메시지 요청 생성
+
+            // 메시지 요청 생성 (세션 userId 사용)
             SendMessageRequest request = new SendMessageRequest();
             request.setChatRoomId(id);
             request.setSenderId(userId);
             request.setContent("data:image/" + getImageFormat(file.getOriginalFilename()) + ";base64," + base64Image);
             request.setMessageType("IMAGE");
             request.setFileName(file.getOriginalFilename());
-            
+
             // 메시지 전송
             MessageResponse response = messageApplicationService.sendMessage(request);
-            
+
             // WebSocket으로 브로드캐스트
             try {
                 messagingTemplate.convertAndSend(
@@ -256,14 +273,14 @@ public class ChatRoomController {
             } catch (Exception e) {
                 log.warn("Failed to broadcast image message via WebSocket", e);
             }
-            
+
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
             log.error("Error uploading image", e);
             throw new IllegalArgumentException(e.getMessage());
         }
     }
-    
+
     /**
      * 파일명에서 이미지 형식 추출
      */

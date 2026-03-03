@@ -129,7 +129,7 @@ function ChatRoomList({ user, filter = 'all', onSelectChatRoom, onTotalUnreadCha
   const loadChatRooms = async () => {
     try {
       setLoading(true);
-      const rooms = await chatRoomService.getAllActiveChatRooms(user.id);
+      const rooms = await chatRoomService.getAllActiveChatRooms();
       setChatRooms(rooms);
       setError('');
     } catch (err) {
@@ -199,7 +199,7 @@ function ChatRoomList({ user, filter = 'all', onSelectChatRoom, onTotalUnreadCha
 
   const handleJoinRoom = async (chatRoom) => {
     try {
-      await chatRoomService.joinChatRoom(chatRoom.id, user.id);
+      await chatRoomService.joinChatRoom(chatRoom.id);
       onSelectChatRoom(chatRoom);
     } catch (err) {
       console.error('Failed to join chat room:', err);

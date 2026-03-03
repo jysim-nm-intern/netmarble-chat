@@ -3,7 +3,8 @@ package com.netmarble.chat.presentation.controller;
 import com.netmarble.chat.application.service.MessageApplicationService;
 import com.netmarble.chat.application.service.ReadStatusApplicationService;
 import com.netmarble.chat.application.service.ChatRoomApplicationService;
-import com.netmarble.chat.domain.repository.UserRepository;
+import com.netmarble.chat.presentation.exception.UnauthorizedException;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 채팅 관련 추가 REST API Controller
@@ -25,32 +27,32 @@ public class ChatController {
     private final MessageApplicationService messageApplicationService;
     private final ReadStatusApplicationService readStatusApplicationService;
     private final ChatRoomApplicationService chatRoomApplicationService;
-    private final UserRepository userRepository;
+
+    private Long requireUserId(HttpSession session) {
+        return Optional.ofNullable(session.getAttribute("userId"))
+                .map(o -> (Long) o)
+                .orElseThrow(() -> new UnauthorizedException("로그인이 필요합니다."));
+    }
 
     /**
      * 채팅방의 메시지별 안읽은 사용자 수 매핑 조회
      * GET /api/chat/unread-count/{chatRoomId}
-     * 
-     * 응답 형식: { "1": lastMessageIdWith1UnreadUser, "2": lastMessageIdWith2UnreadUsers, ... }
-     * 클라이언트에서 메시지 ID로 안읽은 사용자 수를 빠르게 계산하기 위한 매핑
      */
     @GetMapping("/unread-count/{chatRoomId}")
     public ResponseEntity<Map<String, Long>> getUnreadCountMapping(@PathVariable Long chatRoomId) {
         log.info("GET /api/chat/unread-count/{} - Fetching unread count mapping", chatRoomId);
-        
+
         try {
             var messages = messageApplicationService.getChatRoomMessages(chatRoomId, null);
             Map<String, Long> unreadMapping = new HashMap<>();
-            
-            // 메시지를 순회하면서 안읽은 사용자 수별로 마지막 메시지 ID를 기록
-            // 예: unreadCount가 1인 마지막 메시지 ID, 2인 마지막 메시지 ID, ...
+
             for (var message : messages) {
                 if (message.getUnreadCount() != null && message.getUnreadCount() > 0) {
                     String key = String.valueOf(message.getUnreadCount());
                     unreadMapping.put(key, message.getId());
                 }
             }
-            
+
             log.info("Unread count mapping for chatRoomId {}: {}", chatRoomId, unreadMapping);
             return ResponseEntity.ok(unreadMapping);
         } catch (Exception e) {
@@ -62,39 +64,33 @@ public class ChatController {
     /**
      * 사용자 활성 상태 및 마지막 읽은 메시지 ID 업데이트
      * POST /api/chat/update-status-and-logid
-     * 
+     *
      * Request Body:
      * {
      *   "chatRoomId": 1,
-     *   "nickname": "사용자닉네임",
      *   "isOnline": true,
      *   "logId": 123 (선택적)
      * }
+     * 세션에서 userId를 추출하므로 Body의 nickname/userId는 무시된다.
      */
     @PostMapping("/update-status-and-logid")
-    public ResponseEntity<Void> updateStatusAndLogId(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Void> updateStatusAndLogId(
+            @RequestBody Map<String, Object> request,
+            HttpSession session) {
+        Long userId = requireUserId(session);
         Long chatRoomId = Long.valueOf(request.get("chatRoomId").toString());
-        String nickname = request.get("nickname").toString();
         Boolean isOnline = (Boolean) request.get("isOnline");
-        
-        log.info("POST /api/chat/update-status-and-logid - chatRoomId={}, nickname={}, isOnline={}", 
-                 chatRoomId, nickname, isOnline);
-        
+
+        log.info("POST /api/chat/update-status-and-logid - chatRoomId={}, userId={}, isOnline={}",
+                 chatRoomId, userId, isOnline);
+
         try {
-            // 닉네임으로 사용자 조회
-            var user = userRepository.findByNickname(nickname)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + nickname));
-            
-            // 활성 상태 업데이트
-            chatRoomApplicationService.updateMemberActiveStatus(chatRoomId, user.getId(), isOnline);
-            
-            // 온라인이 아닐 때 logId가 제공된 경우, 해당 메시지까지 읽음 처리
-            // (온라인일 때는 자동으로 읽음 처리되므로 별도 처리 불필요)
+            chatRoomApplicationService.updateMemberActiveStatus(chatRoomId, userId, isOnline);
+
             if (!isOnline && request.containsKey("logId") && request.get("logId") != null) {
-                // 오프라인으로 전환 시점의 마지막 메시지까지 읽음 처리
-                readStatusApplicationService.markAsRead(user.getId(), chatRoomId);
+                readStatusApplicationService.markAsRead(userId, chatRoomId);
             }
-            
+
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
             log.error("Error updating status and logId", e);
@@ -105,28 +101,24 @@ public class ChatController {
     /**
      * 사용자의 마지막 읽음 시간 업데이트
      * POST /api/chat/update-read-status
-     * 
+     *
      * Request Body:
      * {
-     *   "chatRoomId": 1,
-     *   "nickname": "사용자닉네임"
+     *   "chatRoomId": 1
      * }
+     * 세션에서 userId를 추출하므로 Body의 nickname은 무시된다.
      */
     @PostMapping("/update-read-status")
-    public ResponseEntity<Void> updateReadStatus(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Void> updateReadStatus(
+            @RequestBody Map<String, Object> request,
+            HttpSession session) {
+        Long userId = requireUserId(session);
         Long chatRoomId = Long.valueOf(request.get("chatRoomId").toString());
-        String nickname = request.get("nickname").toString();
-        
-        log.info("POST /api/chat/update-read-status - chatRoomId={}, nickname={}", chatRoomId, nickname);
-        
+
+        log.info("POST /api/chat/update-read-status - chatRoomId={}, userId={}", chatRoomId, userId);
+
         try {
-            // 닉네임으로 사용자 조회
-            var user = userRepository.findByNickname(nickname)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + nickname));
-            
-            // 마지막 메시지까지 읽음 처리
-            readStatusApplicationService.markAsRead(user.getId(), chatRoomId);
-            
+            readStatusApplicationService.markAsRead(userId, chatRoomId);
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
             log.error("Error updating read status", e);
@@ -137,16 +129,12 @@ public class ChatController {
     /**
      * 메시지 검색
      * GET /api/chat-rooms/{chatRoomId}/messages/search?keyword=검색어
-     * 
-     * @param chatRoomId 채팅방 ID
-     * @param keyword 검색 키워드
-     * @return 검색된 메시지 목록
      */
     @GetMapping("/chat-rooms/{chatRoomId}/messages/search")
-    public ResponseEntity<?> searchMessages(@PathVariable Long chatRoomId, 
+    public ResponseEntity<?> searchMessages(@PathVariable Long chatRoomId,
                                            @RequestParam String keyword) {
         log.info("GET /api/chat-rooms/{}/messages/search?keyword={}", chatRoomId, keyword);
-        
+
         try {
             var searchResults = messageApplicationService.searchMessages(chatRoomId, keyword);
             return ResponseEntity.ok(searchResults);
@@ -159,4 +147,3 @@ public class ChatController {
         }
     }
 }
-

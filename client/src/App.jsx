@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Login from './components/Login'
 import ChatRoom from './components/ChatRoom'
+import api from './api/axiosConfig'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -27,10 +28,16 @@ function App() {
     setUser(userData)
   }
 
-  // 로그아웃
-  const handleLogout = () => {
-    setUser(null)
-    localStorage.removeItem('chatUser')
+  // 로그아웃 — 서버 세션 무효화 후 로컬 스토리지 제거
+  const handleLogout = async () => {
+    try {
+      await api.post('/users/logout')
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      setUser(null)
+      localStorage.removeItem('chatUser')
+    }
   }
 
   // 로딩 중

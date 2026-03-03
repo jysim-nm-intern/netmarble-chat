@@ -128,7 +128,7 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
   }, [chatRoom.id]);
   
   // 활성 상태 추적 (WebSocket 연결은 유지하고 구독만 관리)
-  useActivityTracking(chatRoom.id, user.id, {
+  useActivityTracking(chatRoom.id, {
     onActive: () => {
       if (!hasActivatedRef.current) {
         hasActivatedRef.current = true;
@@ -283,7 +283,7 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
       if (isInitialLoadRef.current) {
         setLoading(true);
       }
-      const messageList = await messageService.getChatRoomMessages(chatRoom.id, user.id);
+      const messageList = await messageService.getChatRoomMessages(chatRoom.id);
       console.log('[ChatRoomView] Messages loaded:', messageList.length);
       // 멤버 정보가 있으면 unreadCount 재계산
       if (members.length > 0) {
@@ -412,7 +412,7 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
     if (message.senderId !== user.id) {
       try {
         console.log('[ChatRoomView] 다른 사용자 메시지 수신, 읽음 처리 시작:', message.id);
-        await readStatusService.markAsRead(user.id, chatRoom.id);
+        await readStatusService.markAsRead(chatRoom.id);
         console.log('[ChatRoomView] 읽음 처리 요청 완료');
       } catch (err) {
         console.error('[ChatRoomView] Failed to mark as read:', err);
@@ -421,7 +421,7 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
       // 본인 메시지의 경우 즉시 읽음 처리
       try {
         console.log('[ChatRoomView] 본인 메시지 전송 완료:', message.id);
-        await readStatusService.markAsRead(user.id, chatRoom.id);
+        await readStatusService.markAsRead(chatRoom.id);
         console.log('[ChatRoomView] 본인 메시지 읽음 처리 완료');
       } catch (err) {
         console.error('[ChatRoomView] Failed to mark as read for own message:', err);
@@ -450,7 +450,7 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
     setMessages(prev => [...prev, tempMessage]);
 
     try {
-      webSocketService.sendMessage(chatRoom.id, user.id, content);
+      webSocketService.sendMessage(chatRoom.id, content);
     } catch (error) {
       console.error('Failed to send message:', error);
       setMessages(prev => prev.filter(m => m.id !== tempId));
@@ -479,7 +479,7 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
     setMessages(prev => [...prev, tempMessage]);
 
     try {
-      const message = await messageService.sendSticker(chatRoom.id, user.id, sticker);
+      const message = await messageService.sendSticker(chatRoom.id, sticker);
       // 임시 메시지 제거 후 서버 응답으로 교체 (WebSocket이 먼저 도착한 경우 중복 방지)
       setMessages(prev => {
         const withoutTemp = prev.filter(m => m.id !== tempId);
@@ -517,7 +517,7 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
     setMessages(prev => [...prev, tempMessage]);
 
     try {
-      const message = await messageService.uploadImageFile(chatRoom.id, user.id, imageData.file);
+      const message = await messageService.uploadImageFile(chatRoom.id, imageData.file);
       const serverImageUrl = message.attachmentUrl || message.content;
 
       const replaceTemp = () => {
@@ -549,8 +549,8 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
 
   const handleLeave = async () => {
     try {
-      await activityService.updateActiveStatus(chatRoom.id, user.id, false);
-      await chatRoomService.leaveChatRoom(chatRoom.id, user.id);
+      await activityService.updateActiveStatus(chatRoom.id, false);
+      await chatRoomService.leaveChatRoom(chatRoom.id);
       unsubscribeFromRoom();
       onLeave();
     } catch (err) {
@@ -561,7 +561,7 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
   
   const handleBack = async () => {
     try {
-      await activityService.updateActiveStatus(chatRoom.id, user.id, false);
+      await activityService.updateActiveStatus(chatRoom.id, false);
     } catch (err) {
       console.error('Failed to update status:', err);
     }

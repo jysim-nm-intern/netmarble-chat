@@ -103,6 +103,23 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 인증 예외 처리 (미로그인 요청)
+     */
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ErrorResponse> handleUnauthorizedException(UnauthorizedException ex) {
+        log.warn("Unauthorized access: {}", ex.getMessage());
+
+        ErrorResponse response = ErrorResponse.builder()
+            .timestamp(LocalDateTime.now())
+            .status(HttpStatus.UNAUTHORIZED.value())
+            .error("Unauthorized")
+            .message(ex.getMessage())
+            .build();
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    /**
      * 기타 예외 처리
      */
     @ExceptionHandler(Exception.class)

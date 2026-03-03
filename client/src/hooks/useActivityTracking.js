@@ -9,14 +9,14 @@ import { readStatusService } from '../api/readStatusService';
  * - 마우스/키보드 활동 감지
  * - 채팅방 입장 시 즉시 읽음 처리
  */
-export function useActivityTracking(chatRoomId, userId, options = {}) {
+export function useActivityTracking(chatRoomId, options = {}) {
   const activityTimeoutRef = useRef(null);
   const heartbeatIntervalRef = useRef(null);
   const inactiveDelayRef = useRef(null);
   const isActiveRef = useRef(false); // 현재 로컬 상태 추적용
 
   useEffect(() => {
-    if (!chatRoomId || !userId) return;
+    if (!chatRoomId) return;
 
     const clearInactiveDelay = () => {
       if (inactiveDelayRef.current) {
@@ -38,7 +38,7 @@ export function useActivityTracking(chatRoomId, userId, options = {}) {
       if (!isActiveRef.current) return; // 이미 비활성 상태면 중단
       isActiveRef.current = false;
       console.log('[Activity] 비활성 상태 전환 (최소화/탭전환/유휴)');
-      activityService.updateActiveStatus(chatRoomId, userId, false);
+      activityService.updateActiveStatus(chatRoomId, false);
       if (options.onInactive) {
         options.onInactive();
       }
@@ -51,8 +51,8 @@ export function useActivityTracking(chatRoomId, userId, options = {}) {
       isActiveRef.current = true;
       console.log('[Activity] 활성 상태 전환');
       
-      await activityService.updateActiveStatus(chatRoomId, userId, true);
-      await readStatusService.markAsRead(userId, chatRoomId);
+      await activityService.updateActiveStatus(chatRoomId, true);
+      await readStatusService.markAsRead(chatRoomId);
       if (options.onActive) {
         options.onActive();
       }
@@ -98,7 +98,7 @@ export function useActivityTracking(chatRoomId, userId, options = {}) {
     // 하트비트 (생존 신고)
     heartbeatIntervalRef.current = setInterval(() => {
       if (isActiveRef.current) {
-        activityService.sendHeartbeat(chatRoomId, userId);
+        activityService.sendHeartbeat(chatRoomId);
       }
     }, 15000);
 
@@ -116,5 +116,5 @@ export function useActivityTracking(chatRoomId, userId, options = {}) {
       if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
       if (activityTimeoutRef.current) clearTimeout(activityTimeoutRef.current);
     };
-  }, [chatRoomId, userId]);
+  }, [chatRoomId]);
 }

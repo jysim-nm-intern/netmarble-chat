@@ -3,6 +3,8 @@ package com.netmarble.chat.presentation.controller;
 import com.netmarble.chat.application.dto.CreateUserRequest;
 import com.netmarble.chat.application.dto.UserResponse;
 import com.netmarble.chat.application.service.UserApplicationService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -38,7 +40,8 @@ public class UserController {
     public ResponseEntity<UserResponse> createUser(
             @RequestParam String nickname,
             @RequestParam(required = false) String profileColor,
-            @RequestParam(required = false) MultipartFile image) {
+            @RequestParam(required = false) MultipartFile image,
+            HttpServletRequest httpRequest) {
         log.info("POST /api/users - Creating/logging in user with nickname: {}", nickname);
 
         String profileImage = null;
@@ -48,7 +51,29 @@ public class UserController {
 
         CreateUserRequest request = new CreateUserRequest(nickname, profileColor, profileImage);
         UserResponse response = userApplicationService.createUser(request);
+
+        // 로그인 성공 시 세션에 userId 저장 (이후 모든 요청의 신뢰 근거)
+        HttpSession session = httpRequest.getSession(true);
+        session.setAttribute("userId", response.getId());
+        session.setMaxInactiveInterval(86400); // 24시간
+        log.info("세션 생성: userId={}, sessionId={}", response.getId(), session.getId());
+
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * 로그아웃
+     * POST /api/users/logout
+     * 서버 세션을 무효화하여 이후 인증된 요청을 차단한다.
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletRequest httpRequest) {
+        HttpSession session = httpRequest.getSession(false);
+        if (session != null) {
+            log.info("로그아웃: sessionId={}", session.getId());
+            session.invalidate();
+        }
+        return ResponseEntity.noContent().build();
     }
 
     /**

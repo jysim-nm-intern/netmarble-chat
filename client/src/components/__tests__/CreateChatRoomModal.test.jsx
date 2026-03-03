@@ -40,8 +40,8 @@ describe('CreateChatRoomModal', () => {
     });
 
     expect(onClose).toHaveBeenCalled();
-    // imageFile 미첨부 시 null로 호출
-    expect(createChatRoomMock).toHaveBeenCalledWith(room.name, user.id, null);
+    // imageFile 미첨부 시 null로 호출 (userId는 서버 세션에서 결정)
+    expect(createChatRoomMock).toHaveBeenCalledWith(room.name, null);
   });
 
   it('설명 입력 필드가 존재하지 않는다', () => {

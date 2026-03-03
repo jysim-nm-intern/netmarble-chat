@@ -254,23 +254,22 @@ describe('WebSocketService', () => {
 
   describe('sendMessage', () => {
     it('연결 안 된 상태에서 예외 발생', () => {
-      expect(() => webSocketService.sendMessage(1, 1, '안녕')).toThrow(
+      expect(() => webSocketService.sendMessage(1, '안녕')).toThrow(
         'WebSocket is not connected'
       );
     });
 
-    it('연결 상태에서 메시지를 publish한다', async () => {
+    it('연결 상태에서 메시지를 publish한다 (senderId 없이)', async () => {
       const promise = webSocketService.connect();
       capturedConfig.onConnect({});
       await promise;
 
-      webSocketService.sendMessage(1, 2, '안녕하세요', 'TEXT');
+      webSocketService.sendMessage(1, '안녕하세요', 'TEXT');
 
       expect(mockPublish).toHaveBeenCalledWith({
         destination: '/app/chat.sendMessage',
         body: JSON.stringify({
           chatRoomId: 1,
-          senderId: 2,
           content: '안녕하세요',
           type: 'TEXT',
         }),
@@ -286,13 +285,12 @@ describe('WebSocketService', () => {
       capturedConfig.onConnect({});
       await promise;
 
-      webSocketService.notifyUserJoined(1, 2, '테스터');
+      webSocketService.notifyUserJoined(1, '테스터');
 
       expect(mockPublish).toHaveBeenCalledWith({
         destination: '/app/chat.addUser',
         body: JSON.stringify({
           chatRoomId: 1,
-          senderId: 2,
           content: '테스터님이 입장했습니다.',
           type: 'SYSTEM',
         }),

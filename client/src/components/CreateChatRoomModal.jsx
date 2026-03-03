@@ -51,7 +51,7 @@ function CreateChatRoomModal({ user, onClose, onChatRoomCreated }) {
 
     try {
       const { chatRoomService } = await import('../api/chatRoomService');
-      const chatRoom = await chatRoomService.createChatRoom(name, user.id, imageFile);
+      const chatRoom = await chatRoomService.createChatRoom(name, imageFile);
       onChatRoomCreated(chatRoom);
       onClose();
     } catch (err) {

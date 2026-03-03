@@ -4,7 +4,6 @@ import com.netmarble.chat.application.dto.MessageResponse;
 import com.netmarble.chat.application.service.ChatRoomApplicationService;
 import com.netmarble.chat.application.service.MessageApplicationService;
 import com.netmarble.chat.application.service.ReadStatusApplicationService;
-import com.netmarble.chat.domain.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,9 +40,6 @@ class ChatControllerSearchTest {
 
     @MockBean
     private ChatRoomApplicationService chatRoomApplicationService;
-
-    @MockBean
-    private UserRepository userRepository;
 
     private List<MessageResponse> mockSearchResults;
 

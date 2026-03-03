@@ -200,8 +200,9 @@ class WebSocketService {
 
   /**
    * 메시지 전송
+   * senderId는 서버가 세션에서 추출하므로 payload에 포함하지 않는다.
    */
-  sendMessage(chatRoomId, senderId, content, type = 'TEXT') {
+  sendMessage(chatRoomId, content, type = 'TEXT') {
     if (!this.client || !this.connected) {
       console.error('Not connected to WebSocket');
       throw new Error('WebSocket is not connected');
@@ -209,7 +210,6 @@ class WebSocketService {
 
     const message = {
       chatRoomId,
-      senderId,
       content,
       type
     };
@@ -224,8 +224,9 @@ class WebSocketService {
 
   /**
    * 사용자 입장 알림
+   * senderId는 서버가 세션에서 추출하므로 payload에 포함하지 않는다.
    */
-  notifyUserJoined(chatRoomId, senderId, nickname) {
+  notifyUserJoined(chatRoomId, nickname) {
     if (!this.client || !this.connected) {
       console.error('Not connected to WebSocket');
       return;
@@ -233,7 +234,6 @@ class WebSocketService {
 
     const message = {
       chatRoomId,
-      senderId,
       content: `${nickname}님이 입장했습니다.`,
       type: 'SYSTEM'
     };

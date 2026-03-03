@@ -29,13 +29,15 @@ Content-Type: multipart/form-data
 **출력 계약 (성공):**
 ```json
 // HTTP 201 Created
+// Set-Cookie: JSESSIONID=<세션ID>; Path=/; HttpOnly
 {
   "userId": 1,
   "nickname": "tester",
   "profileColor": "#4f85c8",
   "profileImage": "data:image/png;base64,..."
 }
-// → localStorage에 chatUser 저장 후 채팅방 목록으로 이동
+// → 서버: JSESSIONID 세션 쿠키 발급 (이후 모든 인증 요청에 자동 포함)
+// → 프론트: localStorage에 chatUser 저장 후 채팅방 목록으로 이동
 ```
 
 **출력 계약 (실패):**
@@ -112,13 +114,13 @@ GET /api/chat-rooms?userId={userId}
 
 **전제 조건:** 사용자가 로그인 상태이다.
 
-**입력 계약:**
+**입력 계약:** 🔒 인증 필요 (JSESSIONID 쿠키)
 ```
 POST /api/chat-rooms
 Content-Type: multipart/form-data
 - name (String, 필수): 2자 이상 100자 이하
-- creatorId (Long, 필수): 생성자 사용자 ID
 - image (MultipartFile, 선택): JPG, PNG, GIF / 최대 5MB
+※ 생성자 ID는 서버가 세션에서 결정 (클라이언트 파라미터 불필요)
 ```
 
 **출력 계약 (성공):**
@@ -146,10 +148,10 @@ Content-Type: multipart/form-data
 
 **전제 조건:** 채팅방이 활성 상태이다. 사용자가 로그인 상태이다.
 
-**입력 계약:**
-```json
+**입력 계약:** 🔒 인증 필요 (JSESSIONID 쿠키)
+```
 POST /api/chat-rooms/{roomId}/join
-{ "userId": 1 }
+※ 요청 Body 없음 — 참여자 ID는 서버가 세션에서 결정
 ```
 
 **출력 계약 (성공):**
@@ -184,6 +186,8 @@ POST /api/chat-rooms/{roomId}/join
 - **AC-ROOM-003-8:** 헤더 아바타 그룹에서 프로필 이미지가 없는 멤버의 아바타는 프로필 색상 배경에 닉네임 첫 글자(대문자)가 표시된다.
 - **AC-ROOM-003-9:** 사용자가 채팅방에 입장하면 입장 시점(joinedAt) 이후에 전송된 메시지만 채팅창에 표시된다. 입장 이전에 다른 사용자가 보낸 메시지는 표시되지 않는다. 이전에 퇴장했다가 재입장하는 경우 재입장 시점 이후 메시지만 표시된다.
 
+> **보안 규칙:** 메시지 이력 조회(`GET /api/messages/chatroom/{id}`) 시 서버는 클라이언트가 전달하는 userId를 신뢰하지 않고 세션에서 인증된 userId를 기준으로 joinedAt 필터링을 수행한다. 이를 통해 클라이언트가 localStorage의 userId를 조작하여 입장 이전 메시지에 접근하는 것을 원천 차단한다.
+
 ---
 
 ### SPEC-ROOM-004: 채팅방 퇴장
@@ -192,10 +196,10 @@ POST /api/chat-rooms/{roomId}/join
 
 **전제 조건:** 사용자가 채팅방에 입장 상태이다.
 
-**입력 계약:**
-```json
-DELETE /api/chat-rooms/{roomId}/leave
-{ "userId": 1 }
+**입력 계약:** 🔒 인증 필요 (JSESSIONID 쿠키)
+```
+POST /api/chat-rooms/{roomId}/leave
+※ 요청 Body 없음 — 퇴장자 ID는 서버가 세션에서 결정
 ```
 
 **출력 계약:**
@@ -225,17 +229,16 @@ DELETE /api/chat-rooms/{roomId}/leave
 
 **전제 조건:** 사용자가 채팅방에 입장 상태이고 WebSocket이 연결되어 있다.
 
-**입력 계약 (STOMP 발행):**
+**입력 계약 (STOMP 발행):** 🔒 인증 필요 (STOMP CONNECT 시 세션 검증)
 ```json
-// 경로: /app/chat.message
+// 경로: /app/chat.sendMessage
 {
-  "roomId": 1,
-  "userId": 1,
+  "chatRoomId": 1,
   "messageType": "TEXT",
-  "content": "안녕하세요",
-  "attachmentUrl": null
+  "content": "안녕하세요"
 }
 // content: 1자 이상, 공백만인 경우 불허
+// ※ userId/senderId는 서버가 세션에서 추출하여 설정 (클라이언트 값 무시)
 ```
 
 **출력 계약 (STOMP 브로드캐스트):**
