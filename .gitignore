@@ -27,6 +27,10 @@ node_modules/
 /client/node_modules/
 /server/.gradle/
 /server/bin/
+/chat-server/.gradle/
+/chat-server/bin/
+/api-server/.gradle/
+/api-server/bin/
 /.pnp
 .pnp.js
 
@@ -40,6 +44,12 @@ out/
 /server/build/
 /server/target/
 /server/out/
+/chat-server/build/
+/chat-server/target/
+/chat-server/out/
+/api-server/build/
+/api-server/target/
+/api-server/out/
 # Gradle wrapper 및 중요 경로는 제외(추적 유지)
 !gradle/wrapper/gradle-wrapper.jar
 !**/gradle/wrapper/gradle-wrapper.properties
@@ -53,6 +63,10 @@ out/
 # Gradle 로컬 배포본 및 압축 파일 (대용량)
 server/gradle-8.5/
 server/gradle.zip
+chat-server/gradle-8.5/
+chat-server/gradle.zip
+api-server/gradle-8.5/
+api-server/gradle.zip
 
 # --- Secrets & Configs (핵심!) ---
 .env
