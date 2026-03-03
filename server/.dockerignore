@@ -1,0 +1,19 @@
+# 빌드 산출물
+build/
+target/
+bin/
+
+# 로컬 Gradle 캐시 및 설치본
+.gradle/
+gradle-8.5/
+gradle.zip
+*.zip
+
+# IDE 및 에디터
+.idea/
+.vscode/
+.cursor/
+.claude/
+
+# 로그
+*.log
