@@ -3,7 +3,7 @@ package com.netmarble.chat.presentation.controller;
 import com.netmarble.chat.application.service.MessageApplicationService;
 import com.netmarble.chat.application.service.ReadStatusApplicationService;
 import com.netmarble.chat.application.service.ChatRoomApplicationService;
-import com.netmarble.chat.domain.repository.UserRepository;
+import com.netmarble.chat.application.service.UserApplicationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +25,7 @@ public class ChatController {
     private final MessageApplicationService messageApplicationService;
     private final ReadStatusApplicationService readStatusApplicationService;
     private final ChatRoomApplicationService chatRoomApplicationService;
-    private final UserRepository userRepository;
+    private final UserApplicationService userApplicationService;
 
     /**
      * 채팅방의 메시지별 안읽은 사용자 수 매핑 조회
@@ -81,9 +81,8 @@ public class ChatController {
                  chatRoomId, nickname, isOnline);
         
         try {
-            // 닉네임으로 사용자 조회
-            var user = userRepository.findByNickname(nickname)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + nickname));
+            // 닉네임으로 사용자 조회 (Service 계층 경유 — Repository 직접 호출 금지)
+            var user = userApplicationService.getUserByNickname(nickname);
             
             // 활성 상태 업데이트
             chatRoomApplicationService.updateMemberActiveStatus(chatRoomId, user.getId(), isOnline);
@@ -120,9 +119,8 @@ public class ChatController {
         log.info("POST /api/chat/update-read-status - chatRoomId={}, nickname={}", chatRoomId, nickname);
         
         try {
-            // 닉네임으로 사용자 조회
-            var user = userRepository.findByNickname(nickname)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + nickname));
+            // 닉네임으로 사용자 조회 (Service 계층 경유 — Repository 직접 호출 금지)
+            var user = userApplicationService.getUserByNickname(nickname);
             
             // 마지막 메시지까지 읽음 처리
             readStatusApplicationService.markAsRead(user.getId(), chatRoomId);
