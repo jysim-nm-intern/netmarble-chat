@@ -4,6 +4,7 @@ import CreateChatRoomModal from './CreateChatRoomModal';
 import ChatRoomList from './ChatRoomList';
 import ChatRoomView from './ChatRoomView';
 import { chatRoomService } from '../api/chatRoomService';
+import webSocketService from '../services/WebSocketService';
 
 const TABS = [
   { key: 'all',      label: '전체' },
@@ -22,6 +23,18 @@ function ChatRoom({ user, onLogout }) {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [totalUnread, setTotalUnread] = useState(0);
+
+  // 로그인 후 WebSocket 연결을 한 번 수립하고 로그아웃/언마운트 시 해제
+  useEffect(() => {
+    webSocketService.connect(
+      () => console.log('[ChatRoom] WebSocket 전역 연결 성공'),
+      (err) => console.error('[ChatRoom] WebSocket 전역 연결 실패:', err)
+    ).catch(() => {});
+
+    return () => {
+      webSocketService.disconnect();
+    };
+  }, []);
 
   // URL의 chatRoomId로 채팅방 정보 로드
   useEffect(() => {
