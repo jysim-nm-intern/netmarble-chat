@@ -127,6 +127,23 @@ describe('WebSocketService', () => {
       expect(webSocketService.isConnected()).toBe(false);
       expect(onError).toHaveBeenCalledWith(wsError);
     });
+
+    it('disconnect 없이 재연결 시 새 Promise가 독립적으로 resolve된다', async () => {
+      // 1차 연결 성공
+      const promise1 = webSocketService.connect();
+      capturedConfig.onConnect({});
+      await promise1;
+
+      // disconnect 없이 연결 끊김 시뮬레이션 (내부 상태만 초기화)
+      webSocketService.connected = false;
+
+      // 2차 connect() 호출 - 새 Promise가 독립적으로 동작해야 함
+      const promise2 = webSocketService.connect();
+      capturedConfig.onConnect({});
+
+      await expect(promise2).resolves.toBeUndefined();
+      expect(webSocketService.isConnected()).toBe(true);
+    });
   });
 
   // --- disconnect ---

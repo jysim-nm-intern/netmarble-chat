@@ -12,7 +12,6 @@ class WebSocketService {
     this.connected = false;
     this.subscriptions = new Map();
     this._connectionListeners = new Set();
-    this._initialResolved = false;
   }
 
   /**
@@ -40,6 +39,7 @@ class WebSocketService {
     }
 
     return new Promise((resolve, reject) => {
+      let initialResolved = false;
       this.client = new Client({
         webSocketFactory: () => new SockJS('/ws'),
         debug: (str) => {
@@ -53,8 +53,8 @@ class WebSocketService {
           this.connected = true;
           this._notifyConnectionChange(true);
           if (onConnected) onConnected(frame);
-          if (!this._initialResolved) {
-            this._initialResolved = true;
+          if (!initialResolved) {
+            initialResolved = true;
             resolve();
           }
         },
@@ -63,8 +63,8 @@ class WebSocketService {
           this.connected = false;
           this._notifyConnectionChange(false);
           if (onError) onError(frame);
-          if (!this._initialResolved) {
-            this._initialResolved = true;
+          if (!initialResolved) {
+            initialResolved = true;
             reject(frame);
           }
         },
@@ -73,8 +73,8 @@ class WebSocketService {
           this.connected = false;
           this._notifyConnectionChange(false);
           if (onError) onError(error);
-          if (!this._initialResolved) {
-            this._initialResolved = true;
+          if (!initialResolved) {
+            initialResolved = true;
             reject(error);
           }
         },
@@ -101,7 +101,6 @@ class WebSocketService {
 
       this.client.deactivate();
       this.connected = false;
-      this._initialResolved = false;
       this._notifyConnectionChange(false);
       console.log('Disconnected from WebSocket');
     }
