@@ -30,11 +30,6 @@ dependencies {
     // MongoDB — 메시지 이력 조회, cursor-based 페이징
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
 
-    // MySQL — 채팅방/유저 조회 (chat-server와 공유 DB)
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    runtimeOnly 'com.mysql:mysql-connector-j'
-    runtimeOnly 'com.h2database:h2'
-
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

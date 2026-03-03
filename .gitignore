@@ -76,6 +76,12 @@ server/gradle.zip
 !.github/**/*.yml
 !.github/**/*.yaml
 
+# docker-compose 및 Spring Boot application.yml 추적 유지
+!docker-compose.yml
+!docker-compose.*.yml
+!**/src/main/resources/application*.yml
+!**/src/main/resources/application*.yaml
+
 # 특정 경로(resources) 내의 설정파일을 확실히 무시
 **/src/main/resources/application*.properties
 **/src/main/resources/application*.yml

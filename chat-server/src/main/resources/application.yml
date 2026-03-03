@@ -1,0 +1,64 @@
+spring:
+  application:
+    name: netmarble-chat-server
+
+  # MySQL — 유저, 채팅방, 멤버십 (관계형 데이터)
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/netmarble_chat?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  # MongoDB — 메시지 쓰기 전용 (STOMP 수신 시 비정규화 저장)
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/netmarble_chat}
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+  jackson:
+    time-zone: Asia/Seoul
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.springframework.web: INFO
+    com.netmarble.chat: DEBUG
+    org.hibernate.SQL: WARN
+
+---
+# 단위 테스트 / H2 인메모리 프로파일
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  data:
+    mongodb:
+      # 단위 테스트에서 MongoDB 자동 구성 비활성화 (EmbeddedMongo 없을 때)
+      uri: ${MONGODB_URI:mongodb://localhost:27017/netmarble_chat_test}
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
