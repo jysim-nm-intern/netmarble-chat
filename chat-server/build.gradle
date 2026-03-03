@@ -29,9 +29,15 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-    // Database
+    // Database — MySQL (유저/채팅방/멤버십 관계형 데이터)
     runtimeOnly 'com.mysql:mysql-connector-j'
     runtimeOnly 'com.h2database:h2'
+
+    // MongoDB — 메시지 쓰기 (STOMP 수신 시 비정규화 저장)
+    implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+
+    // Redis — 읽음 상태 원자적 처리
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'

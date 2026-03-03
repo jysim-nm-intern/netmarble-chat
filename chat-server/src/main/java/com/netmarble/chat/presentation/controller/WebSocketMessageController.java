@@ -3,12 +3,15 @@ package com.netmarble.chat.presentation.controller;
 import com.netmarble.chat.application.dto.MessageResponse;
 import com.netmarble.chat.application.dto.SendMessageRequest;
 import com.netmarble.chat.application.service.MessageApplicationService;
+import com.netmarble.chat.infrastructure.mongo.ChatMessageDocument;
+import com.netmarble.chat.infrastructure.mongo.ChatMessageMongoRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,11 +28,14 @@ public class WebSocketMessageController {
 
     private final MessageApplicationService messageApplicationService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ChatMessageMongoRepository mongoRepository;
 
     /**
      * 메시지 전송 (WebSocket)
      * 클라이언트에서 /app/chat.sendMessage로 메시지를 보내면
-     * 처리 후 /topic/chatroom/{chatRoomId}로 브로드캐스트
+     * 1) MySQL 저장 (관계형 데이터, unreadCount 처리)
+     * 2) MongoDB 비동기 저장 (api-server cursor-based 페이징용)
+     * 3) /topic/chatroom/{chatRoomId} 브로드캐스트
      */
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(@Payload @Valid SendMessageRequest request) {
@@ -37,10 +43,13 @@ public class WebSocketMessageController {
                  request.getChatRoomId(), request.getSenderId());
         
         try {
-            // 메시지 저장 (unreadCount 포함)
+            // 1) MySQL 저장 (unreadCount 포함)
             MessageResponse response = messageApplicationService.sendMessage(request);
 
-            // 채팅방 구독자들에게 브로드캐스트
+            // 2) MongoDB 비동기 저장 (실패해도 STOMP 브로드캐스트는 정상 진행)
+            saveToMongoAsync(request, response);
+
+            // 3) 채팅방 구독자들에게 브로드캐스트
             messagingTemplate.convertAndSend(
                 "/topic/chatroom/" + request.getChatRoomId(),
                 response
@@ -49,12 +58,28 @@ public class WebSocketMessageController {
             log.info("Message broadcasted to /topic/chatroom/{}", request.getChatRoomId());
         } catch (Exception e) {
             log.error("Error sending message", e);
-            // 에러를 발신자에게만 전송
             messagingTemplate.convertAndSendToUser(
                 request.getSenderId().toString(),
                 "/queue/errors",
                 e.getMessage()
             );
+        }
+    }
+
+    @Async
+    protected void saveToMongoAsync(SendMessageRequest request, MessageResponse response) {
+        try {
+            ChatMessageDocument doc = ChatMessageDocument.builder()
+                .roomId(String.valueOf(request.getChatRoomId()))
+                .senderId(String.valueOf(request.getSenderId()))
+                .senderNickname(response.getSenderNickname())
+                .content(request.getContent())
+                .type(request.getMessageType() != null ? request.getMessageType() : "CHAT")
+                .build();
+            mongoRepository.save(doc);
+            log.debug("Message saved to MongoDB: roomId={}", request.getChatRoomId());
+        } catch (Exception e) {
+            log.warn("MongoDB 저장 실패 (fallback: MySQL만 저장됨): {}", e.getMessage());
         }
     }
 
