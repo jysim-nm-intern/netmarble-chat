@@ -8,6 +8,9 @@ on:
       - 'client/tests/**'
       - 'client/package*.json'
       - 'client/playwright.config.*'
+      # Phase 2 — 서버 변경도 E2E 트리거
+      - 'api-server/src/main/**'
+      - 'server/src/main/**'
   pull_request:
     branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
@@ -16,10 +19,35 @@ on:
       - 'client/tests/**'
       - 'client/package*.json'
       - 'client/playwright.config.*'
+      # Phase 2 — 서버 변경도 E2E 트리거
+      - 'api-server/src/main/**'
+      - 'server/src/main/**'
 jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+
+    services:
+      # Phase 2 api-server 기동을 위한 MongoDB
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      # Phase 2 api-server 기동을 위한 Redis
+      redis:
+        image: redis:7.2
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
     - uses: actions/checkout@v4
@@ -31,12 +59,30 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Gradle 실행 권한 부여
-      working-directory: server
-      run: chmod +x ./gradlew
+    # ── 백엔드 모듈 감지 및 기동 ────────────────────────────────────
+    # Phase 2(api-server)가 있으면 우선 사용, 없으면 Phase 1(server) 사용
+    - name: 백엔드 모듈 감지
+      id: detect-backend
+      run: |
+        if [ -f api-server/build.gradle ]; then
+          echo "module=api-server" >> $GITHUB_OUTPUT
+          echo "gradlew_path=./gradlew" >> $GITHUB_OUTPUT
+        else
+          echo "module=server" >> $GITHUB_OUTPUT
+          echo "gradlew_path=server/gradlew" >> $GITHUB_OUTPUT
+        fi
 
-    # ── Spring Boot 백엔드 기동 (H2 인메모리) ──────────────────────
-    - name: Spring Boot 백엔드 시작 (백그라운드)
+    - name: Gradle Wrapper 준비
+      run: |
+        if [ -f gradlew ]; then
+          chmod +x gradlew
+        elif [ -f server/gradlew ]; then
+          cp server/gradlew . && cp -r server/gradle . && chmod +x gradlew
+        fi
+
+    # Phase 1 백엔드 기동 (server/ 모듈 사용 시)
+    - name: Spring Boot 백엔드 시작 — Phase 1 (server)
+      if: steps.detect-backend.outputs.module == 'server'
       working-directory: server
       run: nohup ./gradlew bootRun --no-daemon > /tmp/backend.log 2>&1 &
       env:
@@ -47,10 +93,30 @@ jobs:
         SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.H2Dialect
         SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
 
+    # Phase 2 백엔드 기동 (api-server/ 모듈 사용 시)
+    - name: Spring Boot 백엔드 시작 — Phase 2 (api-server)
+      if: steps.detect-backend.outputs.module == 'api-server'
+      run: |
+        nohup ./gradlew :api-server:bootRun --no-daemon > /tmp/backend.log 2>&1 &
+      env:
+        SPRING_DATASOURCE_URL: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
+        SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+        SPRING_DATASOURCE_USERNAME: sa
+        SPRING_DATASOURCE_PASSWORD: ""
+        SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.H2Dialect
+        SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+        SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/chat_e2e
+        SPRING_DATA_REDIS_HOST: localhost
+        SPRING_DATA_REDIS_PORT: 6379
+        JWT_SECRET: e2e-test-secret-key-for-ci-only-must-be-long-enough
+        JWT_ACCESS_TOKEN_EXPIRY: 3600000
+        JWT_REFRESH_TOKEN_EXPIRY: 604800000
+
     - name: 백엔드 시작 대기 (최대 5분)
       run: |
         for i in $(seq 1 150); do
-          if curl -s http://localhost:8080 > /dev/null 2>&1; then
+          if curl -s http://localhost:8080/actuator/health > /dev/null 2>&1 || \
+             curl -s http://localhost:8080 > /dev/null 2>&1; then
             echo "백엔드 시작 완료"
             exit 0
           fi
@@ -77,11 +143,18 @@ jobs:
       run: npx playwright install --with-deps
 
     # ── E2E 테스트 실행 ────────────────────────────────────────────
-    # Phase 1 진행 중: ChatRoom 미구현 테스트는 실패 예상 → PR을 막지 않음
     - name: Playwright E2E 테스트 실행
       working-directory: client
       run: npx playwright test
       continue-on-error: true
+
+    - name: 백엔드 로그 업로드 (디버깅용)
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: backend-log
+        path: /tmp/backend.log
+        retention-days: 3
 
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
