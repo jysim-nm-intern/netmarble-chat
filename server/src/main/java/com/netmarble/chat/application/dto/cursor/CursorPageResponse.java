@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * Cursor-based 페이징 응답
  *
- * API: GET /api/rooms/{roomId}/messages?cursor={lastId}&limit=50&direction=BEFORE
+ * API: GET /api/chat-rooms/{roomId}/messages?cursor={lastId}&limit=50&direction=BEFORE
  */
 @Getter
 @Builder

@@ -49,9 +49,4 @@ public interface MessageMongoRepository extends MongoRepository<MessageDocument,
      */
     List<MessageDocument> findBySenderIdOrderByCreatedAtDesc(String senderId,
         org.springframework.data.domain.Pageable pageable);
-
-    /**
-     * readCount 업데이트를 위한 단건 조회
-     */
-    Optional<MessageDocument> findById(String id);
 }

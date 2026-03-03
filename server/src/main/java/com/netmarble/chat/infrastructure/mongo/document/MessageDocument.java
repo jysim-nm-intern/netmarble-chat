@@ -39,6 +39,10 @@ public class MessageDocument {
     private String content;
     private String type;
 
+    // 첨부파일 정보 (IMAGE / STICKER 메시지에 존재)
+    private String attachmentUrl;
+    private String attachmentType;
+
     // 읽음 카운트 (Redis와 주기적 동기화)
     private int readCount = 0;
 
@@ -47,12 +51,16 @@ public class MessageDocument {
 
     @Builder
     public MessageDocument(String roomId, String senderId, String senderNickname,
-                           String content, String type, LocalDateTime createdAt) {
+                           String content, String type,
+                           String attachmentUrl, String attachmentType,
+                           LocalDateTime createdAt) {
         this.roomId = roomId;
         this.senderId = senderId;
         this.senderNickname = senderNickname;
         this.content = content;
         this.type = type;
+        this.attachmentUrl = attachmentUrl;
+        this.attachmentType = attachmentType;
         this.createdAt = createdAt != null ? createdAt : LocalDateTime.now();
     }
 

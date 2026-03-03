@@ -213,13 +213,11 @@ CREATE TABLE `attachment` (
 | 인덱스 | 필드 | 방향 | 목적 |
 |--------|------|------|------|
 | 복합 인덱스 (Primary) | `roomId`, `_id` | ASC, DESC | Cursor-based 페이징 |
-| 단순 인덱스 | `senderId` | ASC | 사용자별 메시지 조회 |
-| 단순 인덱스 | `createdAt` | DESC | 기간 조회 |
+| 복합 인덱스 | `senderId`, `createdAt` | ASC, DESC | 발신자별 메시지 이력 조회 |
 
 ```javascript
-db.messages.createIndex({ roomId: 1, _id: -1 });  // 커서 페이징 핵심 인덱스
-db.messages.createIndex({ senderId: 1 });
-db.messages.createIndex({ createdAt: -1 });
+db.messages.createIndex({ roomId: 1, _id: -1 });           // 커서 페이징 핵심 인덱스
+db.messages.createIndex({ senderId: 1, createdAt: -1 });   // 발신자별 이력 조회
 ```
 
 ### 2-2. `read_statuses` 컬렉션 (대형 채팅방 전용)
