@@ -35,8 +35,8 @@ class WebSocketService {
   connect(onConnected, onError) {
     if (this.connected) {
       console.log('Already connected to WebSocket');
-      if (onConnected) onConnected();
-      return Promise.resolve();
+      if (onConnected) onConnected(null);
+      return Promise.resolve(null);
     }
 
     return new Promise((resolve, reject) => {
