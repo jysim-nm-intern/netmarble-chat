@@ -217,3 +217,75 @@ interface MessageSender {
     void send(String destination, Object payload);
 }
 ```
+
+---
+
+## Phase 2 — Gradle 멀티모듈 아키텍처 (SPEC-ARCH-002)
+
+### 모듈 구조
+
+```
+netmarble-chat/              ← 루트 프로젝트
+├── common-domain/           ← 순수 POJO 도메인 모듈 (인프라 의존 없음)
+│   └── src/main/java/com/netmarble/chat/
+│       ├── domain/
+│       │   ├── model/       ← User, ChatRoom, Message, ChatRoomMember, Attachment
+│       │   └── repository/  ← 도메인 레포지토리 인터페이스
+│       └── application/
+│           └── dto/         ← 공유 DTO (ChatRoomResponse, MessageResponse 등)
+│
+├── api-server/              ← REST API + WebSocket + 인증 서버
+│   └── src/main/java/com/netmarble/chat/
+│       ├── domain/model/    ← JPA 엔티티 (@Entity, @Table)
+│       ├── application/
+│       │   ├── service/     ← 비즈니스 서비스 (JPA + MongoDB)
+│       │   └── dto/cursor/  ← CursorPageResponse
+│       ├── infrastructure/
+│       │   ├── persistence/ ← JpaChatRoomRepository, JpaUserRepository
+│       │   ├── mongo/
+│       │   │   ├── document/   ← MessageDocument, ReadStatusDocument
+│       │   │   └── repository/ ← MessageMongoRepository
+│       │   ├── redis/       ← ReadStatusRedisService
+│       │   ├── security/    ← JwtTokenProvider, JwtAuthenticationFilter,
+│       │   │                   SecurityConfig, JwtHandshakeInterceptor
+│       │   └── config/      ← RedisConfig, WebConfig, WebSocketConfig
+│       └── presentation/
+│           └── controller/
+│               ├── auth/    ← AuthController (JWT 발급/갱신/로그아웃)
+│               └── ...      ← ChatRoomController, UserController 등
+│
+└── chat-server/             ← 실시간 STOMP 전용 서버 (향후 분리)
+    └── src/main/java/com/netmarble/chat/
+        └── ChatServerApplication.java
+```
+
+### 모듈 의존성 방향
+
+```
+api-server    ──→ common-domain
+chat-server   ──→ common-domain
+
+common-domain ──→ (없음, 순수 Java)
+```
+
+> `api-server` ↔ `chat-server` 간 직접 의존은 **금지**.  
+> 공유가 필요한 도메인 객체는 반드시 `common-domain`을 통해서만 공유합니다.
+
+### 계층 간 의존성 규칙 (ArchUnit 검증)
+
+| 규칙 | 설명 |
+|------|------|
+| `domain` → `infrastructure` 금지 | 도메인이 JPA/MongoDB/Redis 에 직접 의존 불가 |
+| `controller` → `repository` 직접 호출 금지 | Controller는 Service만 호출 |
+| `common-domain` → Spring 의존 금지 | 순수 Java만 사용 |
+
+### 기술 스택 (Phase 2)
+
+| 구분 | 기술 |
+|------|------|
+| 메시지 저장소 | MongoDB (cursor-based paging) |
+| 채팅방/유저 저장소 | MySQL (JPA, JOIN FETCH) |
+| 읽음 상태 | Redis (Lua Script atomic) + MongoDB (동기화) |
+| 인증 | JWT (HS256, AccessToken 15분, RefreshToken 7일) |
+| 캐시/블랙리스트 | Redis |
+| 아키텍처 검증 | ArchUnit |
