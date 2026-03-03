@@ -4,10 +4,12 @@ import com.netmarble.chat.application.dto.MessageResponse;
 import com.netmarble.chat.application.service.ChatRoomApplicationService;
 import com.netmarble.chat.application.service.MessageApplicationService;
 import com.netmarble.chat.application.service.ReadStatusApplicationService;
-import com.netmarble.chat.domain.repository.UserRepository;
+import com.netmarble.chat.application.service.UserApplicationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,7 +29,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * ChatController의 메시지 검색 엔드포인트 테스트
  */
-@WebMvcTest(ChatController.class)
+@WebMvcTest(
+    value = ChatController.class,
+    excludeAutoConfiguration = {SecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class}
+)
 class ChatControllerSearchTest {
 
     @Autowired
@@ -43,7 +48,7 @@ class ChatControllerSearchTest {
     private ChatRoomApplicationService chatRoomApplicationService;
 
     @MockBean
-    private UserRepository userRepository;
+    private UserApplicationService userApplicationService;
 
     private List<MessageResponse> mockSearchResults;
 
