@@ -4,52 +4,36 @@ on:
   push:
     branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
-      # Phase 1 — 기존 단일 모듈
+      - 'chat-server/src/**'
+      - 'chat-server/build.gradle'
+      - 'chat-server/settings.gradle'
+      - 'chat-server/gradle/**'
       - 'server/src/**'
       - 'server/build.gradle'
       - 'server/settings.gradle'
       - 'server/gradle/**'
-      # Phase 2 — 멀티모듈
-      - 'api-server/src/**'
-      - 'api-server/build.gradle'
-      - 'common-domain/src/**'
-      - 'common-domain/build.gradle'
-      - 'chat-server/src/**'
-      - 'chat-server/build.gradle'
-      - 'settings.gradle'
-      - 'build.gradle'
   pull_request:
     branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
-      # Phase 1 — 기존 단일 모듈
+      - 'chat-server/src/**'
+      - 'chat-server/build.gradle'
+      - 'chat-server/settings.gradle'
+      - 'chat-server/gradle/**'
       - 'server/src/**'
       - 'server/build.gradle'
       - 'server/settings.gradle'
       - 'server/gradle/**'
-      # Phase 2 — 멀티모듈
-      - 'api-server/src/**'
-      - 'api-server/build.gradle'
-      - 'common-domain/src/**'
-      - 'common-domain/build.gradle'
-      - 'chat-server/src/**'
-      - 'chat-server/build.gradle'
-      - 'settings.gradle'
-      - 'build.gradle'
 
 jobs:
-  # ─── [Phase 1] 단위 테스트 (server/, H2 인메모리) ────────────────────────────
+  # ─── 단위 테스트 (H2 인메모리, @Tag("integration") 제외) ─────────────────────
   unit-test:
-    name: Spring Boot 단위 테스트 (Phase 1 - server)
+    name: Spring Boot 단위 테스트
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
       checks: write
       pull-requests: write
-
-    defaults:
-      run:
-        working-directory: server
 
     steps:
       - uses: actions/checkout@v4
@@ -60,22 +44,26 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Gradle 실행 권한 부여
-        run: chmod +x ./gradlew
-
-      - name: server 모듈 존재 확인
-        id: check-server
+      # chat-server/ 우선, 없으면 server/ fallback
+      - name: 서버 디렉토리 결정
+        id: server-dir
         run: |
-          if [ -f gradlew ]; then echo "exists=true" >> $GITHUB_OUTPUT
-          else echo "exists=false" >> $GITHUB_OUTPUT; fi
+          if [ -f "chat-server/build.gradle" ]; then
+            echo "dir=chat-server" >> $GITHUB_OUTPUT
+          else
+            echo "dir=server" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Gradle 실행 권한 부여
+        run: chmod +x ./${{ steps.server-dir.outputs.dir }}/gradlew
 
       - name: 단위 테스트 실행
-        if: steps.check-server.outputs.exists == 'true'
+        working-directory: ${{ steps.server-dir.outputs.dir }}
         run: ./gradlew test --no-daemon
         continue-on-error: true
 
       - name: JaCoCo 커버리지 리포트 생성
-        if: steps.check-server.outputs.exists == 'true'
+        working-directory: ${{ steps.server-dir.outputs.dir }}
         run: ./gradlew jacocoTestReport --no-daemon
         continue-on-error: true
 
@@ -83,7 +71,8 @@ jobs:
         id: check-unit-tests
         if: always()
         run: |
-          if ls build/test-results/test/*.xml 2>/dev/null | head -1 | grep -q .; then
+          SERVER_DIR="${{ steps.server-dir.outputs.dir }}"
+          if ls ${SERVER_DIR}/build/test-results/test/*.xml 2>/dev/null | head -1 | grep -q .; then
             echo "has-tests=true" >> $GITHUB_OUTPUT
           else
             echo "has-tests=false" >> $GITHUB_OUTPUT
@@ -93,8 +82,8 @@ jobs:
         uses: dorny/test-reporter@v1
         if: always() && steps.check-unit-tests.outputs.has-tests == 'true'
         with:
-          name: Server Unit Tests (Phase 1)
-          path: server/build/test-results/test/*.xml
+          name: Server Unit Tests
+          path: ${{ steps.server-dir.outputs.dir }}/build/test-results/test/*.xml
           reporter: java-junit
           fail-on-error: true
 
@@ -103,93 +92,18 @@ jobs:
         if: always()
         with:
           name: jacoco-coverage-report
-          path: server/build/reports/jacoco/
+          path: ${{ steps.server-dir.outputs.dir }}/build/reports/jacoco/
           retention-days: 7
 
-  # ─── [Phase 2] api-server 단위 테스트 ────────────────────────────────────────
-  api-server-unit-test:
-    name: Spring Boot 단위 테스트 (Phase 2 - api-server)
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: api-server 모듈 존재 확인
-        id: check-api-server
-        run: |
-          if [ -f api-server/build.gradle ]; then echo "exists=true" >> $GITHUB_OUTPUT
-          else echo "exists=false" >> $GITHUB_OUTPUT; fi
-
-      - uses: actions/setup-java@v4
-        if: steps.check-api-server.outputs.exists == 'true'
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: 루트 Gradle Wrapper 실행 권한 부여
-        if: steps.check-api-server.outputs.exists == 'true'
-        run: |
-          if [ -f gradlew ]; then chmod +x gradlew
-          elif [ -f server/gradlew ]; then cp server/gradlew . && cp -r server/gradle . && chmod +x gradlew
-          fi
-
-      - name: api-server 단위 테스트 실행
-        if: steps.check-api-server.outputs.exists == 'true'
-        run: |
-          if [ -f gradlew ]; then
-            ./gradlew :api-server:test --no-daemon -x :api-server:integrationTest
-          else
-            cd api-server && ../server/gradlew test --no-daemon
-          fi
-        continue-on-error: true
-
-      - name: 테스트 결과 파일 확인
-        id: check-api-tests
-        if: always() && steps.check-api-server.outputs.exists == 'true'
-        run: |
-          if ls api-server/build/test-results/test/*.xml 2>/dev/null | head -1 | grep -q .; then
-            echo "has-tests=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-tests=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 테스트 결과 PR 체크에 기록
-        uses: dorny/test-reporter@v1
-        if: always() && steps.check-api-tests.outputs.has-tests == 'true'
-        with:
-          name: Server Unit Tests (Phase 2 - api-server)
-          path: api-server/build/test-results/test/*.xml
-          reporter: java-junit
-          fail-on-error: true
-
-      - name: 테스트 결과 아티팩트 업로드
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: api-server-unit-test-results
-          path: api-server/build/test-results/test/
-          retention-days: 7
-
-  # ─── [Phase 1] 통합 테스트 (server/, MySQL) ──────────────────────────────────
+  # ─── 통합 테스트 (MySQL 서비스 컨테이너 사용) ─────────────────────────────────
   integration-test:
-    name: Spring Boot 통합 테스트 (Phase 1 - server, MySQL)
+    name: Spring Boot 통합 테스트 (MySQL)
     runs-on: ubuntu-latest
-    if: ${{ !startsWith(github.head_ref, 'feature/phase-2/') }}
 
     permissions:
       contents: read
       checks: write
       pull-requests: write
-
-    defaults:
-      run:
-        working-directory: server
 
     services:
       mysql:
@@ -216,17 +130,20 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Gradle 실행 권한 부여
-        run: chmod +x ./gradlew
-
-      - name: server 모듈 존재 확인
-        id: check-server
+      - name: 서버 디렉토리 결정
+        id: server-dir
         run: |
-          if [ -f gradlew ]; then echo "exists=true" >> $GITHUB_OUTPUT
-          else echo "exists=false" >> $GITHUB_OUTPUT; fi
+          if [ -f "chat-server/build.gradle" ]; then
+            echo "dir=chat-server" >> $GITHUB_OUTPUT
+          else
+            echo "dir=server" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Gradle 실행 권한 부여
+        run: chmod +x ./${{ steps.server-dir.outputs.dir }}/gradlew
 
       - name: 통합 테스트 실행 (MySQL 연동)
-        if: steps.check-server.outputs.exists == 'true'
+        working-directory: ${{ steps.server-dir.outputs.dir }}
         run: ./gradlew integrationTest --no-daemon
         continue-on-error: true
         env:
@@ -239,7 +156,8 @@ jobs:
         id: check-integration-tests
         if: always()
         run: |
-          if ls build/test-results/integrationTest/*.xml 2>/dev/null | head -1 | grep -q .; then
+          SERVER_DIR="${{ steps.server-dir.outputs.dir }}"
+          if ls ${SERVER_DIR}/build/test-results/integrationTest/*.xml 2>/dev/null | head -1 | grep -q .; then
             echo "has-tests=true" >> $GITHUB_OUTPUT
           else
             echo "has-tests=false" >> $GITHUB_OUTPUT
@@ -249,8 +167,8 @@ jobs:
         uses: dorny/test-reporter@v1
         if: always() && steps.check-integration-tests.outputs.has-tests == 'true'
         with:
-          name: Server Integration Tests (Phase 1)
-          path: server/build/test-results/integrationTest/*.xml
+          name: Server Integration Tests
+          path: ${{ steps.server-dir.outputs.dir }}/build/test-results/integrationTest/*.xml
           reporter: java-junit
           fail-on-error: false
 
@@ -259,117 +177,5 @@ jobs:
         if: always()
         with:
           name: server-integration-test-results
-          path: server/build/test-results/integrationTest/
-          retention-days: 7
-
-  # ─── [Phase 2] api-server 통합 테스트 (MySQL + MongoDB + Redis) ───────────────
-  api-server-integration-test:
-    name: Spring Boot 통합 테스트 (Phase 2 - api-server, MySQL+MongoDB+Redis)
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: testroot
-          MYSQL_DATABASE: chat_test
-          MYSQL_USER: chatuser
-          MYSQL_PASSWORD: chatpass
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-      mongodb:
-        image: mongo:7.0
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-      redis:
-        image: redis:7.2
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd="redis-cli ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: api-server 모듈 존재 확인
-        id: check-api-server
-        run: |
-          if [ -f api-server/build.gradle ]; then echo "exists=true" >> $GITHUB_OUTPUT
-          else echo "exists=false" >> $GITHUB_OUTPUT; fi
-
-      - uses: actions/setup-java@v4
-        if: steps.check-api-server.outputs.exists == 'true'
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: 루트 Gradle Wrapper 실행 권한 부여
-        if: steps.check-api-server.outputs.exists == 'true'
-        run: |
-          if [ -f gradlew ]; then chmod +x gradlew
-          elif [ -f server/gradlew ]; then cp server/gradlew . && cp -r server/gradle . && chmod +x gradlew
-          fi
-
-      - name: api-server 통합 테스트 실행
-        if: steps.check-api-server.outputs.exists == 'true'
-        run: |
-          if [ -f gradlew ]; then
-            ./gradlew :api-server:integrationTest --no-daemon
-          else
-            cd api-server && ../server/gradlew integrationTest --no-daemon
-          fi
-        continue-on-error: true
-        env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/chat_test
-          SPRING_DATASOURCE_USERNAME: chatuser
-          SPRING_DATASOURCE_PASSWORD: chatpass
-          SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
-          SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/chat_test
-          SPRING_DATA_REDIS_HOST: localhost
-          SPRING_DATA_REDIS_PORT: 6379
-
-      - name: 통합 테스트 결과 파일 확인
-        id: check-integration-tests
-        if: always() && steps.check-api-server.outputs.exists == 'true'
-        run: |
-          if ls api-server/build/test-results/integrationTest/*.xml 2>/dev/null | head -1 | grep -q .; then
-            echo "has-tests=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-tests=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 통합 테스트 결과 PR 체크에 기록
-        uses: dorny/test-reporter@v1
-        if: always() && steps.check-integration-tests.outputs.has-tests == 'true'
-        with:
-          name: Server Integration Tests (Phase 2 - api-server)
-          path: api-server/build/test-results/integrationTest/*.xml
-          reporter: java-junit
-          fail-on-error: false
-
-      - name: 통합 테스트 결과 아티팩트 업로드
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: api-server-integration-test-results
-          path: api-server/build/test-results/integrationTest/
+          path: ${{ steps.server-dir.outputs.dir }}/build/test-results/integrationTest/
           retention-days: 7
