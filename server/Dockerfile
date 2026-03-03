@@ -12,7 +12,7 @@ COPY build.gradle .
 COPY settings.gradle .
 COPY gradle.properties .
 
-RUN chmod +x gradlew
+RUN chmod +x gradlew && sed -i 's/\r$//' gradlew
 
 # 의존성 다운로드 (소스 변경 시 재다운로드 방지)
 RUN ./gradlew dependencies --no-daemon 2>/dev/null || true
