@@ -183,3 +183,83 @@ CREATE TABLE `attachment` (
   CONSTRAINT FK_Attachment_Message FOREIGN KEY (message_id) REFERENCES message(message_id)
 );
 ```
+
+---
+
+## Phase 2 — MongoDB 컬렉션 스키마 (SPEC-DB-002)
+
+> Phase 2부터 메시지 및 읽음 상태는 MySQL에서 MongoDB로 전환됩니다.  
+> **비정규화(Denormalization)** 전략으로 JOIN 없이 단일 문서에서 응답을 완성합니다.
+
+### 2-1. `messages` 컬렉션
+
+```json
+{
+  "_id":             "ObjectId",
+  "roomId":          "string (ChatRoom MySQL PK)",
+  "senderId":        "string (User MySQL PK)",
+  "senderNickname":  "string (비정규화)",
+  "content":         "string",
+  "type":            "string (TEXT|IMAGE|STICKER|SYSTEM)",
+  "attachmentUrl":   "string|null",
+  "attachmentType":  "string|null",
+  "readCount":       "int (default 0)",
+  "createdAt":       "ISODate"
+}
+```
+
+#### 인덱스 전략
+
+| 인덱스 | 필드 | 방향 | 목적 |
+|--------|------|------|------|
+| 복합 인덱스 (Primary) | `roomId`, `_id` | ASC, DESC | Cursor-based 페이징 |
+| 단순 인덱스 | `senderId` | ASC | 사용자별 메시지 조회 |
+| 단순 인덱스 | `createdAt` | DESC | 기간 조회 |
+
+```javascript
+db.messages.createIndex({ roomId: 1, _id: -1 });  // 커서 페이징 핵심 인덱스
+db.messages.createIndex({ senderId: 1 });
+db.messages.createIndex({ createdAt: -1 });
+```
+
+### 2-2. `read_statuses` 컬렉션 (대형 채팅방 전용)
+
+> 멤버 수 1,000명 초과 채팅방에서 Redis → MongoDB 동기화 용도.
+
+```json
+{
+  "_id":       "ObjectId",
+  "messageId": "string",
+  "userId":    "string",
+  "readAt":    "ISODate"
+}
+```
+
+#### 인덱스 전략
+
+| 인덱스 | 필드 | 목적 |
+|--------|------|------|
+| Unique 복합 | `messageId`, `userId` | 중복 읽음 방지 |
+
+### 2-3. Cursor-based 페이징 전략
+
+**기준 필드:** MongoDB `_id` (ObjectId, 삽입 순서 보장)
+
+```
+GET /api/chat-rooms/{id}/messages?cursor={objectId}&limit=50&direction=before
+```
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| `cursor` | ObjectId hex | 기준 메시지 ID (없으면 최신부터) |
+| `limit`  | int | 페이지 크기 (기본 50, 최대 100) |
+| `direction` | `before`\|`after` | 커서 이전/이후 방향 |
+
+**응답 구조:**
+```json
+{
+  "messages":   [...],
+  "nextCursor": "string|null",
+  "hasMore":    true
+}
+```
