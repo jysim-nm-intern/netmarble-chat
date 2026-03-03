@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 채팅방 도메인 모델 (순수 POJO - 인프라 의존 없음)
@@ -52,15 +53,19 @@ public class ChatRoom {
     }
 
     public boolean addMember(User user) {
+        if (user == null || user.getId() == null) {
+            throw new IllegalArgumentException("유효한 사용자(ID 포함)가 필요합니다.");
+        }
+
         boolean alreadyActiveMember = members.stream()
-            .anyMatch(m -> m.getUserId().equals(user.getId()) && m.isActive());
+            .anyMatch(m -> Objects.equals(m.getUserId(), user.getId()) && m.isActive());
 
         if (alreadyActiveMember) {
             return false;
         }
 
         ChatRoomMember inactiveMember = members.stream()
-            .filter(m -> m.getUserId().equals(user.getId()) && !m.isActive())
+            .filter(m -> Objects.equals(m.getUserId(), user.getId()) && !m.isActive())
             .findFirst()
             .orElse(null);
 
@@ -68,14 +73,19 @@ public class ChatRoom {
             inactiveMember.rejoin();
             return true;
         } else {
-            members.add(new ChatRoomMember(this.id, user.getId()));
+            // chatRoomId는 ChatRoom이 저장된 뒤 인프라 계층에서 채워진다
+            members.add(new ChatRoomMember(user.getId()));
             return true;
         }
     }
 
     public void removeMember(User user) {
+        if (user == null || user.getId() == null) {
+            throw new IllegalArgumentException("유효한 사용자(ID 포함)가 필요합니다.");
+        }
+
         ChatRoomMember member = members.stream()
-            .filter(m -> m.getUserId().equals(user.getId()) && m.isActive())
+            .filter(m -> Objects.equals(m.getUserId(), user.getId()) && m.isActive())
             .findFirst()
             .orElseThrow(() -> new IllegalArgumentException("채팅방에 참여하지 않은 사용자입니다."));
 
@@ -87,8 +97,11 @@ public class ChatRoom {
     }
 
     public boolean isActiveMember(User user) {
+        if (user == null || user.getId() == null) {
+            return false;
+        }
         return members.stream()
-            .anyMatch(m -> m.getUserId().equals(user.getId()) && m.isActive());
+            .anyMatch(m -> Objects.equals(m.getUserId(), user.getId()) && m.isActive());
     }
 
     public void deactivate() {

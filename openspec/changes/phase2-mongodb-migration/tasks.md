@@ -4,17 +4,17 @@
 - [x] 1.2 `common-domain/build.gradle` 생성: Spring Boot 의존성 없이 순수 Java 모듈로 설정
 - [x] 1.3 `api-server/build.gradle` 생성: `common-domain` 의존성 추가, Spring Boot, JPA, Security, MongoDB 의존성 포함
 - [x] 1.4 `chat-server/build.gradle` 생성: `common-domain` 의존성 추가, Spring Boot, WebSocket, Redis 의존성 포함
-- [x] 1.5 기존 `server/src` 소스 코드를 도메인/인프라 레이어별로 `common-domain`, `api-server`, `chat-server`로 이동
+- [x] 1.5 기존 `server/src` 소스 코드를 도메인/인프라 레이어별로 `common-domain`, `api-server`, `chat-server`로 이동 (api-server는 PR #40에 포함)
 - [x] 1.6 각 모듈 단독 `./gradlew :<module>:build` 성공 확인
-- [x] 1.7 ArchUnit 의존성 방향 규칙 테스트 작성 (`common-domain` → 인프라 금지, 모듈 간 역방향 금지)
+- [x] 1.7 ArchUnit 의존성 방향 규칙 테스트 작성 (`common-domain` → 인프라 금지, 모듈 간 역방향 금지) (api-server 단위 테스트에 포함, PR #40)
 
 ## 2. common-domain 도메인 모델 정리
 
-- [x] 2.1 `Room`, `Message`, `User` 도메인 객체를 순수 POJO로 `common-domain`에 정의 (JPA/MongoDB 어노테이션 제거)
-- [x] 2.2 `MessageService`, `RoomService`, `ReadStatusService` 인터페이스를 `common-domain`에 이동
-- [x] 2.3 `MessageDto`, `RoomDto`, `RoomSummaryDto` 등 공유 DTO를 `common-domain`에 이동
-- [x] 2.4 공통 예외 클래스(`ChatException`, `RoomNotFoundException` 등)를 `common-domain`에 이동
-- [x] 2.5 `common-domain` 컴파일 시 `jakarta.persistence`, `org.springframework.data.mongodb` 의존 없음 확인
+- [x] 2.1 `ChatRoom`, `ChatRoomMember`, `Message`, `User` 도메인 객체를 순수 POJO로 `common-domain`에 정의 (JPA/MongoDB 어노테이션 제거)
+- [x] 2.2 도메인 Repository 인터페이스(`ChatRoomRepository`, `MessageRepository` 등)를 `common-domain`에 정의
+- [x] 2.3 `ChatRoom.addMember/removeMember/isActiveMember` — `Objects.equals`로 NPE 방어, user null/ID null 검증 추가
+- [x] 2.4 `ChatRoomMember` 생성자: `chatRoomId` 제거 (도메인 생성 시점에 불필요, 인프라에서 설정), `leave/rejoin` 유효성 검증 추가
+- [x] 2.5 `common-domain` 도메인 단위 테스트 작성 (`ChatRoomPojoTest`, `ChatRoomMemberPojoTest`, `MessagePojoTest`, `UserPojoTest` — 64개 통과)
 
 ## 3. MongoDB 저장소 전환 (#38)
 
