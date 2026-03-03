@@ -3,12 +3,30 @@ import SockJS from 'sockjs-client';
 
 /**
  * WebSocket 연결 관리 클래스
+ * - 싱글톤으로 앱 전체에서 하나의 연결을 공유
+ * - 연결 상태 변경을 리스너로 전파
  */
 class WebSocketService {
   constructor() {
     this.client = null;
     this.connected = false;
     this.subscriptions = new Map();
+    this._connectionListeners = new Set();
+    this._initialResolved = false;
+  }
+
+  /**
+   * 연결 상태 변경 리스너 등록.
+   * 콜백은 (connected: boolean) 형태로 호출됨.
+   * 반환값: 리스너 해제 함수
+   */
+  addConnectionListener(listener) {
+    this._connectionListeners.add(listener);
+    return () => this._connectionListeners.delete(listener);
+  }
+
+  _notifyConnectionChange(connected) {
+    this._connectionListeners.forEach(fn => fn(connected));
   }
 
   /**
@@ -17,15 +35,13 @@ class WebSocketService {
   connect(onConnected, onError) {
     if (this.connected) {
       console.log('Already connected to WebSocket');
+      if (onConnected) onConnected();
       return Promise.resolve();
     }
 
     return new Promise((resolve, reject) => {
-      // SockJS를 통한 WebSocket 연결
-      const socket = new SockJS('/ws');
-
       this.client = new Client({
-        webSocketFactory: () => socket,
+        webSocketFactory: () => new SockJS('/ws'),
         debug: (str) => {
           console.log('STOMP Debug:', str);
         },
@@ -35,24 +51,37 @@ class WebSocketService {
         onConnect: (frame) => {
           console.log('Connected to WebSocket:', frame);
           this.connected = true;
+          this._notifyConnectionChange(true);
           if (onConnected) onConnected(frame);
-          resolve();
+          if (!this._initialResolved) {
+            this._initialResolved = true;
+            resolve();
+          }
         },
         onStompError: (frame) => {
           console.error('STOMP Error:', frame);
           this.connected = false;
+          this._notifyConnectionChange(false);
           if (onError) onError(frame);
-          reject(frame);
+          if (!this._initialResolved) {
+            this._initialResolved = true;
+            reject(frame);
+          }
         },
         onWebSocketError: (error) => {
           console.error('WebSocket Error:', error);
           this.connected = false;
+          this._notifyConnectionChange(false);
           if (onError) onError(error);
-          reject(error);
+          if (!this._initialResolved) {
+            this._initialResolved = true;
+            reject(error);
+          }
         },
         onDisconnect: () => {
           console.log('Disconnected from WebSocket');
           this.connected = false;
+          this._notifyConnectionChange(false);
         }
       });
 
@@ -64,15 +93,16 @@ class WebSocketService {
    * WebSocket 연결 해제
    */
   disconnect() {
-    if (this.client && this.connected) {
-      // 모든 구독 취소
+    if (this.client) {
       this.subscriptions.forEach((subscription) => {
-        subscription.unsubscribe();
+        try { subscription.unsubscribe(); } catch (_) { /* no-op */ }
       });
       this.subscriptions.clear();
 
       this.client.deactivate();
       this.connected = false;
+      this._initialResolved = false;
+      this._notifyConnectionChange(false);
       console.log('Disconnected from WebSocket');
     }
   }

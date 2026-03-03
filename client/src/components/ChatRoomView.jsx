@@ -97,7 +97,7 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
   const [members, setMembers] = useState([]);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [connected, setConnected] = useState(false);
+  const [connected, setConnected] = useState(webSocketService.isConnected());
   const [reconnectVersion, setReconnectVersion] = useState(0);
   const [showSearch, setShowSearch] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
@@ -111,29 +111,40 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
   const [jumpDateKey, setJumpDateKey] = useState(null);
   const [jumpDatePulseKey, setJumpDatePulseKey] = useState(0);
   const hasActivatedRef = useRef(false);
-  const wasDisconnectedRef = useRef(false);
+  const wasInactiveRef = useRef(false);
   const isInitialLoadRef = useRef(true);
+
+  // WebSocket 연결 상태 추적 (부모 컴포넌트에서 연결 관리)
+  useEffect(() => {
+    const removeListener = webSocketService.addConnectionListener((isConnected) => {
+      setConnected(isConnected);
+      if (isConnected) {
+        subscribeToRoom();
+      }
+    });
+    return removeListener;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatRoom.id]);
   
-  // 활성 상태 추적
+  // 활성 상태 추적 (WebSocket 연결은 유지하고 구독만 관리)
   useActivityTracking(chatRoom.id, user.id, {
     onActive: () => {
       if (!hasActivatedRef.current) {
         hasActivatedRef.current = true;
-        wasDisconnectedRef.current = false;
+        wasInactiveRef.current = false;
         return;
       }
-      if (wasDisconnectedRef.current) {
+      if (wasInactiveRef.current) {
         setReconnectVersion((prev) => prev + 1);
-        wasDisconnectedRef.current = false;
+        wasInactiveRef.current = false;
       }
-      connectWebSocket();
+      subscribeToRoom();
       loadMembers();
       loadMessages();
     },
     onInactive: () => {
-      wasDisconnectedRef.current = true;
-      webSocketService.disconnect();
-      setConnected(false);
+      wasInactiveRef.current = true;
+      webSocketService.unsubscribeFromChatRoom(chatRoom.id);
     }
   });
 
@@ -158,15 +169,14 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
   }, []);
 
   useEffect(() => {
-    // 초기 데이터 로드
     loadMembers();
     loadMessages();
-    connectWebSocket();
+    subscribeToRoom();
 
-    // 컴포넌트 언마운트 시 정리
     return () => {
-      disconnectWebSocket();
+      unsubscribeFromRoom();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatRoom.id]);
 
   useEffect(() => {
@@ -281,31 +291,15 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
     }
   };
 
-  const connectWebSocket = async () => {
-    try {
-      await webSocketService.connect(
-        () => {
-          console.log('WebSocket connected');
-          setConnected(true);
-          
-          // 채팅방 구독
-          webSocketService.subscribeToChatRoom(chatRoom.id, handleMessageReceived);
-          
-          // 읽음 상태 업데이트 구독
-          webSocketService.subscribeToReadStatus(chatRoom.id, handleReadStatusUpdate);
-          
-          // 입장 알림 (선택사항 - 서버에서 이미 처리했을 수도 있음)
-          // webSocketService.notifyUserJoined(chatRoom.id, user.id, user.nickname);
-        },
-        (error) => {
-          console.error('WebSocket connection error:', error);
-          setConnected(false);
-        }
-      );
-    } catch (error) {
-      console.error('Failed to connect WebSocket:', error);
-      setConnected(false);
+  const subscribeToRoom = () => {
+    if (!webSocketService.isConnected()) {
+      console.log('[ChatRoomView] WebSocket 미연결 상태, 구독 대기');
+      return;
     }
+    console.log('[ChatRoomView] 채팅방 구독:', chatRoom.id);
+    setConnected(true);
+    webSocketService.subscribeToChatRoom(chatRoom.id, handleMessageReceived);
+    webSocketService.subscribeToReadStatus(chatRoom.id, handleReadStatusUpdate);
   };
 
   const handleReadStatusUpdate = (readStatusData) => {
@@ -360,9 +354,8 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
     console.log('[ChatRoomView] 읽음 상태 업데이트 완료');
   };
 
-  const disconnectWebSocket = () => {
+  const unsubscribeFromRoom = () => {
     webSocketService.unsubscribeFromChatRoom(chatRoom.id);
-    // 전체 연결 해제는 하지 않음 (다른 채팅방으로 이동할 수 있음)
   };
 
   const handleMessageReceived = async (message) => {
@@ -548,7 +541,7 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
     try {
       await activityService.updateActiveStatus(chatRoom.id, user.id, false);
       await chatRoomService.leaveChatRoom(chatRoom.id, user.id);
-      disconnectWebSocket();
+      unsubscribeFromRoom();
       onLeave();
     } catch (err) {
       console.error('Failed to leave chat room:', err);
@@ -557,13 +550,12 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
   };
   
   const handleBack = async () => {
-    // 채팅방 목록으로 돌아갈 때 비활성화 처리
     try {
       await activityService.updateActiveStatus(chatRoom.id, user.id, false);
     } catch (err) {
       console.error('Failed to update status:', err);
     }
-    disconnectWebSocket();
+    unsubscribeFromRoom();
     onLeave();
   };
 
@@ -702,7 +694,13 @@ function ChatRoomView({ user, chatRoom, onLeave }) {
                 <img src={chatRoom.imageUrl} alt={`${chatRoom.name} 채팅방 이미지`} className="w-full h-full object-cover" />
               </div>
             ) : (
-              <HeaderAvatarGroup activeMembers={otherMembers.slice(0, 4)} />
+              <HeaderAvatarGroup
+                activeMembers={
+                  otherMembers.length > 0
+                    ? otherMembers.slice(0, 4)
+                    : [{ profileImage: user.profileImage, profileColor: user.profileColor, nickname: user.nickname }]
+                }
+              />
             )}
             <div className="min-w-0">
               <h2 className="text-sm font-bold text-[#5d4037] truncate leading-tight">

@@ -110,10 +110,20 @@ function ChatRoomList({ user, filter = 'all', onSelectChatRoom, onTotalUnreadCha
   const [chatRooms, setChatRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [wsConnected, setWsConnected] = useState(webSocketService.isConnected());
   const subscriptionsRef = useRef(new Map());
 
   useEffect(() => {
     loadChatRooms();
+  }, []);
+
+  // WebSocket 연결 상태 추적
+  useEffect(() => {
+    setWsConnected(webSocketService.isConnected());
+    const removeListener = webSocketService.addConnectionListener((connected) => {
+      setWsConnected(connected);
+    });
+    return removeListener;
   }, []);
 
   const loadChatRooms = async () => {
@@ -139,9 +149,9 @@ function ChatRoomList({ user, filter = 'all', onSelectChatRoom, onTotalUnreadCha
     onTotalUnreadChange(total);
   }, [chatRooms, onTotalUnreadChange]);
 
-  // 참가중인 방에 WebSocket 구독 → 실시간 마지막 메시지 & 읽지 않은 수 업데이트
+  // WebSocket 연결 시 참가중인 모든 방에 구독 → 실시간 마지막 메시지 & 읽지 않은 수 업데이트
   useEffect(() => {
-    if (chatRooms.length === 0) return;
+    if (!wsConnected || chatRooms.length === 0) return;
 
     const joinedRooms = chatRooms.filter(r => r.isMember);
 
@@ -152,12 +162,24 @@ function ChatRoomList({ user, filter = 'all', onSelectChatRoom, onTotalUnreadCha
         setChatRooms(prev => prev.map(r => {
           if (r.id !== room.id) return r;
           const isOwnMessage = message.senderId === user.id;
-          const content = message.content?.startsWith('data:image') ? '[사진]' : message.content;
+          const isSystemMessage = message.type === 'SYSTEM' || message.messageType === 'SYSTEM';
+          const isImageMessage = message.type === 'IMAGE' || message.messageType === 'IMAGE';
+          const isStickerMessage = message.type === 'STICKER' || message.messageType === 'STICKER';
+
+          let content = message.content;
+          if (isImageMessage || content?.startsWith('data:image')) {
+            content = '[사진]';
+          } else if (isStickerMessage) {
+            content = '[스티커]';
+          }
+
           return {
             ...r,
             lastMessageContent: content,
             lastMessageAt: message.sentAt || new Date().toISOString(),
-            unreadCount: isOwnMessage ? (r.unreadCount || 0) : (r.unreadCount || 0) + 1,
+            unreadCount: isOwnMessage || isSystemMessage
+              ? (r.unreadCount || 0)
+              : (r.unreadCount || 0) + 1,
           };
         }));
       });
@@ -166,14 +188,14 @@ function ChatRoomList({ user, filter = 'all', onSelectChatRoom, onTotalUnreadCha
     });
 
     return () => {
-      subscriptionsRef.current.forEach(sub => {
-        try { sub.unsubscribe(); } catch (_) {}
+      subscriptionsRef.current.forEach((_sub, roomId) => {
+        webSocketService.unsubscribeFromChatRoom(roomId);
       });
       subscriptionsRef.current.clear();
     };
-  // chatRooms의 id 목록이 바뀔 때만 재구독
+  // wsConnected 변경 또는 참가중인 방 목록이 바뀔 때 재구독
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatRooms.map(r => r.id).join(','), user.id]);
+  }, [wsConnected, chatRooms.filter(r => r.isMember).map(r => r.id).join(','), user.id]);
 
   const handleJoinRoom = async (chatRoom) => {
     try {
@@ -279,7 +301,13 @@ function ChatRoomList({ user, filter = 'all', onSelectChatRoom, onTotalUnreadCha
             ) : (
               <AvatarGroup
                 memberCount={room.memberCount || 0}
-                avatars={room.memberAvatars || []}
+                avatars={
+                  (room.memberAvatars?.length > 0)
+                    ? room.memberAvatars
+                    : (room.memberCount === 1)
+                      ? [{ profileImage: user.profileImage, profileColor: user.profileColor, nickname: user.nickname }]
+                      : []
+                }
               />
             )}
 
