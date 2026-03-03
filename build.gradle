@@ -1,0 +1,12 @@
+// 모든 서브프로젝트 공통 설정
+subprojects {
+    apply plugin: 'java'
+
+    repositories {
+        mavenCentral()
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}
