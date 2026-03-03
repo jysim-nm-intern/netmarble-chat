@@ -1,0 +1,88 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.1'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id 'jacoco'
+}
+
+group = 'com.netmarble'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = '17'
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // 공통 도메인 모듈
+    implementation project(':common-domain')
+
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // MongoDB
+    implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+
+    // Database
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'com.h2database:h2'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:mysql'
+    testImplementation 'org.testcontainers:mongodb'
+
+    // ArchUnit — 의존성 방향 규칙 검증
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.2.1'
+}
+
+tasks.named('test') {
+    useJUnitPlatform {
+        excludeTags 'integration'
+    }
+    finalizedBy jacocoTestReport
+}
+
+tasks.register('integrationTest', Test) {
+    description = '통합 테스트 실행 (로컬 MySQL/MongoDB 필요)'
+    group = 'verification'
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
