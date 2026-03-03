@@ -1,25 +1,25 @@
-name: Chat-Server Tests
+name: API-Server Tests
 
 on:
   push:
     branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
-      - 'chat-server/src/**'
-      - 'chat-server/build.gradle'
-      - 'chat-server/settings.gradle'
-      - 'chat-server/gradle/**'
+      - 'api-server/src/**'
+      - 'api-server/build.gradle'
+      - 'api-server/settings.gradle'
+      - 'api-server/gradle/**'
   pull_request:
     branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
-      - 'chat-server/src/**'
-      - 'chat-server/build.gradle'
-      - 'chat-server/settings.gradle'
-      - 'chat-server/gradle/**'
+      - 'api-server/src/**'
+      - 'api-server/build.gradle'
+      - 'api-server/settings.gradle'
+      - 'api-server/gradle/**'
 
 jobs:
-  # ─── 단위 테스트 (H2 인메모리, @Tag("integration") 제외) ─────────────────────
+  # ─── 단위 테스트 (@Tag("integration") 제외) ───────────────────────────────────
   unit-test:
-    name: Spring Boot 단위 테스트
+    name: API-Server 단위 테스트
     runs-on: ubuntu-latest
 
     permissions:
@@ -29,7 +29,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: chat-server
+        working-directory: api-server
 
     steps:
       - uses: actions/checkout@v4
@@ -65,8 +65,8 @@ jobs:
         uses: dorny/test-reporter@v1
         if: always() && steps.check-unit-tests.outputs.has-tests == 'true'
         with:
-          name: Server Unit Tests
-          path: chat-server/build/test-results/test/*.xml
+          name: API-Server Unit Tests
+          path: api-server/build/test-results/test/*.xml
           reporter: java-junit
           fail-on-error: true
 
@@ -74,13 +74,13 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: jacoco-coverage-report
-          path: chat-server/build/reports/jacoco/
+          name: api-server-jacoco-coverage-report
+          path: api-server/build/reports/jacoco/
           retention-days: 7
 
-  # ─── 통합 테스트 (MySQL 서비스 컨테이너 사용) ─────────────────────────────────
+  # ─── 통합 테스트 (내장 MongoDB Flapdoodle 사용) ───────────────────────────────
   integration-test:
-    name: Spring Boot 통합 테스트 (MySQL)
+    name: API-Server 통합 테스트 (MongoDB)
     runs-on: ubuntu-latest
 
     permissions:
@@ -90,23 +90,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: chat-server
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: testroot
-          MYSQL_DATABASE: chat_test
-          MYSQL_USER: chatuser
-          MYSQL_PASSWORD: chatpass
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+        working-directory: api-server
 
     steps:
       - uses: actions/checkout@v4
@@ -120,14 +104,9 @@ jobs:
       - name: Gradle 실행 권한 부여
         run: chmod +x ./gradlew
 
-      - name: 통합 테스트 실행 (MySQL 연동)
+      - name: 통합 테스트 실행 (내장 MongoDB)
         run: ./gradlew integrationTest --no-daemon
         continue-on-error: true
-        env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/chat_test
-          SPRING_DATASOURCE_USERNAME: chatuser
-          SPRING_DATASOURCE_PASSWORD: chatpass
-          SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
 
       - name: 통합 테스트 결과 파일 확인
         id: check-integration-tests
@@ -143,8 +122,8 @@ jobs:
         uses: dorny/test-reporter@v1
         if: always() && steps.check-integration-tests.outputs.has-tests == 'true'
         with:
-          name: Server Integration Tests
-          path: chat-server/build/test-results/integrationTest/*.xml
+          name: API-Server Integration Tests
+          path: api-server/build/test-results/integrationTest/*.xml
           reporter: java-junit
           fail-on-error: false
 
@@ -152,6 +131,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: server-integration-test-results
-          path: chat-server/build/test-results/integrationTest/
+          name: api-server-integration-test-results
+          path: api-server/build/test-results/integrationTest/
           retention-days: 7
