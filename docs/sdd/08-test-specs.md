@@ -117,6 +117,28 @@ server/build/reports/jacoco/test/html/index.html
 | FE-LOGIN-002 | SPEC-USR-001 | AC-USR-001-2,3,4 | 정상 닉네임 로그인 성공, localStorage 저장, 화면 전환 |
 | FE-ROOM-001 | SPEC-ROOM-002 | AC-ROOM-002-2,3 | 채팅방 생성 모달 동작 및 콜백 호출 |
 | FE-ROOM-002 | SPEC-ROOM-001 | AC-ROOM-001-3 | 목록 로딩 실패 시 재시도 버튼 표시 |
+| FE-WS-001 | SPEC-ROOM-001 | - | `WebSocketService.addConnectionListener` 리스너 등록 및 해제 |
+| FE-WS-002 | SPEC-ROOM-001 | - | `WebSocketService.connect()` 성공 시 `isConnected=true` 및 리스너 통보 |
+| FE-WS-003 | SPEC-ROOM-001 | - | 이미 연결된 상태에서 `connect()` 호출 시 즉시 resolve |
+| FE-WS-004 | SPEC-ROOM-001 | - | STOMP/WebSocket 에러 시 reject 및 `isConnected=false` |
+| FE-WS-005 | SPEC-ROOM-001 | - | `disconnect()` 시 모든 구독 해제, 리스너에 false 통보 |
+| FE-WS-006 | SPEC-ROOM-001 | - | 미연결 상태에서 `subscribeToChatRoom()` → null 반환 |
+| FE-WS-007 | SPEC-ROOM-001 | - | 연결 상태에서 `subscribeToChatRoom()` → 구독 객체 반환, 중복 구독 시 기존 해제 |
+| FE-WS-008 | SPEC-ROOM-001 | - | `unsubscribeFromChatRoom()` 메시지+읽음 상태 구독 모두 해제 |
+| FE-WS-009 | SPEC-MSG-001 | - | 미연결 상태 `sendMessage()` 예외 발생, 연결 상태에서 publish 성공 |
+| FE-WS-010 | SPEC-ROOM-003 | - | `notifyUserJoined()` SYSTEM 메시지 publish |
+| FE-ROOM-LIST-WS-001 | SPEC-ROOM-001 | AC-ROOM-001-9 | WebSocket 연결 시 참가중인 방에만 구독 (미참가 방 제외) |
+| FE-ROOM-LIST-WS-002 | SPEC-ROOM-001 | AC-ROOM-001-9 | 타인 메시지 수신 시 마지막 메시지 내용 및 unreadCount 갱신 |
+| FE-ROOM-LIST-WS-003 | SPEC-ROOM-001 | AC-ROOM-001-10 | 본인 메시지 수신 시 unreadCount 미증가 |
+| FE-ROOM-LIST-WS-004 | SPEC-ROOM-001 | AC-ROOM-001-10 | 시스템 메시지 수신 시 unreadCount 미증가 |
+| FE-ROOM-LIST-WS-005 | SPEC-ROOM-001 | AC-ROOM-001-12 | 이미지 메시지 수신 시 `[사진]`, 스티커 메시지 시 `[스티커]` 표시 |
+| FE-ROOM-LIST-WS-006 | SPEC-ROOM-001 | - | `data:image` 시작 TEXT 메시지도 `[사진]`으로 표시 |
+| FE-ROOM-LIST-WS-007 | SPEC-ROOM-001 | - | `onTotalUnreadChange`로 참가중인 방의 총 unreadCount 전달 |
+| FE-ROOM-LIST-WS-008 | SPEC-ROOM-001 | - | 실시간 메시지 수신 후 총 unreadCount 값 갱신 |
+| FE-ROOM-LIST-FILTER-001 | SPEC-ROOM-001 | - | `filter=unread` 시 읽지 않은 방만 표시 |
+| FE-ROOM-WS-LIFECYCLE-001 | SPEC-ROOM-001 | - | `ChatRoom` 마운트 시 `webSocketService.connect()` 호출 |
+| FE-ROOM-WS-LIFECYCLE-002 | SPEC-ROOM-001 | - | `ChatRoom` 언마운트 시 `webSocketService.disconnect()` 호출 |
+| FE-ROOM-WS-LIFECYCLE-003 | SPEC-ROOM-001 | - | `connect()` 실패해도 에러 없이 렌더링 |
 | FE-SEARCH-001~004 | SPEC-MSG-005 | AC-MSG-005-1,2,3,6 | 검색 결과 렌더링, 빈 결과 안내, 서버 오류 처리 |
 | E2E-CHAT-001~004 | SPEC-ROOM, SPEC-READ | - | 로그인→채팅방→메시지 전송→읽음 처리 전체 흐름 |
 | E2E-SEARCH-001~011 | SPEC-MSG-005 | - | 키워드·발신자·날짜 필터 검색, 하이라이트, 화살표 이동 |
@@ -149,6 +171,7 @@ server/build/reports/jacoco/test/html/index.html
 | E2E-SEARCH-011 | SPEC-MSG-005 | AC-MSG-005-7 | 검색 결과 화살표로 이동 시 해당 메시지 버블에 `message-bounce` 애니메이션 적용 (노란 링 미적용) |
 | E2E-JOIN-MSG-001 | SPEC-ROOM-003 | AC-ROOM-003-9 | 신규 입장 사용자에게 입장 이전 메시지 미표시, 입장 이후 메시지 표시 |
 | E2E-JOIN-MSG-002 | SPEC-ROOM-003 | AC-ROOM-003-9 | 재입장 사용자에게 부재 중 메시지 미표시, 재입장 이후 메시지 표시 |
+| E2E-ROOM-LIST-RT-001 | SPEC-ROOM-001 | AC-ROOM-001-9, AC-ROOM-001-10 | 다른 사용자 메시지 전송 시 채팅방 목록의 마지막 메시지와 읽지 않은 수가 새로고침 없이 실시간 갱신 |
 
 ---
 
@@ -159,6 +182,8 @@ server/build/reports/jacoco/test/html/index.html
 
 | 테스트 ID | 관련 SPEC | 인수 조건 | 검증 내용 | 우선순위 |
 |-----------|-----------|-----------|-----------|---------|
+| E2E-ROOM-LIST-RT-002 | SPEC-ROOM-001 | AC-ROOM-001-11 | 비활성 상태(탭 최소화)에서도 채팅방 목록의 실시간 갱신이 유지됨 | 🟡 보통 |
+| E2E-ROOM-LIST-RT-003 | SPEC-ROOM-001 | AC-ROOM-001-12 | 이미지/스티커 메시지 수신 시 목록에 `[사진]`/`[스티커]`로 표시 (FE 단위 테스트 FE-ROOM-LIST-WS-005로 커버됨) | 🟢 낮음 |
 | BE-MSG-SVC-001 | SPEC-MSG-001 | AC-MSG-001-4 | 공백만인 메시지 전송 시 예외 발생 | 🔴 높음 |
 | BE-MSG-SVC-002 | SPEC-MSG-001 | - | 텍스트 메시지 전송 성공 → MessageResponse 반환 | 🔴 높음 |
 | BE-MSG-SVC-003 | SPEC-MSG-001 | - | 채팅방 비멤버의 메시지 전송 시 예외 발생 | 🔴 높음 |

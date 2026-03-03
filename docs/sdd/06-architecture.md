@@ -12,16 +12,20 @@
 │                                                                 │
 │   ✅ REST API 사용 영역 (상태 변경, 데이터 조회)                    │
 │      ├── 사용자 로그인 / 조회                                      │
-│      ├── 채팅방 생성 / 목록 / 입장 / 퇴장                          │
+│      ├── 채팅방 생성 / 목록(초기 로드) / 입장 / 퇴장               │
 │      ├── 메시지 이력 조회 / 검색                                   │
 │      └── 이미지 파일 업로드                                        │
 │                                                                 │
 │   ✅ WebSocket / STOMP 사용 영역 (실시간 이벤트)                   │
-│      ├── 메시지 전송  (/app/chat.message)                        │
-│      ├── 읽음 처리   (/app/chat.read)                            │
-│      └── 실시간 수신 (/topic/room/{id})                          │
+│      ├── 메시지 전송     (/app/chat.message)                     │
+│      ├── 읽음 처리      (/app/chat.read)                         │
+│      ├── 실시간 수신    (/topic/chatroom/{id})                   │
+│      ├── 읽음 상태 수신  (/topic/chatroom/{id}/read-status)      │
+│      └── 채팅방 목록 실시간 갱신 (/topic/chatroom/{id} × N)       │
+│           → 참가중 채팅방의 lastMessage·unreadCount 실시간 반영    │
 │                                                                 │
 │   ❌ 금지: 실시간 메시지 전송에 REST API 사용                       │
+│   ❌ 금지: 채팅방 목록 실시간 갱신을 위한 폴링(Polling) 사용         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -128,16 +132,32 @@ com.netmarble.chat
 
 ```
 App.jsx
-├── Login.jsx                     ← SPEC-USR-001
+├── Login.jsx                      ← SPEC-USR-001
 │
-├── ChatRoomList.jsx               ← SPEC-ROOM-001
-│   └── CreateChatRoomModal.jsx    ← SPEC-ROOM-002
-│
-└── ChatRoomView.jsx               ← SPEC-ROOM-003, SPEC-ROOM-004
-    ├── MessageList.jsx            ← SPEC-MSG-001~003, SPEC-READ-001
-    ├── MessageInput.jsx           ← SPEC-MSG-001~003
-    └── MessageSearch.jsx          ← SPEC-MSG-005
+└── ChatRoom.jsx                   ← WebSocket 연결 수명주기 관리 (전역)
+    │
+    ├── ChatRoomList.jsx           ← SPEC-ROOM-001 (실시간 목록 갱신)
+    │   │  ※ 참가중 채팅방 토픽을 WebSocket 구독하여
+    │   │    lastMessage·unreadCount를 실시간 갱신
+    │   └── CreateChatRoomModal.jsx ← SPEC-ROOM-002
+    │
+    └── ChatRoomView.jsx           ← SPEC-ROOM-003, SPEC-ROOM-004
+        │  ※ WebSocket 연결은 부모(ChatRoom)에서 관리
+        │    해당 방의 구독/해제만 담당
+        ├── MessageList.jsx        ← SPEC-MSG-001~003, SPEC-READ-001
+        ├── MessageInput.jsx       ← SPEC-MSG-001~003
+        └── MessageSearch.jsx      ← SPEC-MSG-005
 ```
+
+### WebSocket 연결 관리 원칙
+
+| 원칙 | 설명 |
+|------|------|
+| **전역 연결** | WebSocket 연결은 `ChatRoom` 컴포넌트(로그인 후 항상 마운트)에서 한 번 수립한다. |
+| **연결 유지** | 채팅방 목록 ↔ 채팅방 내부 간 전환 시에도 WebSocket 연결을 유지한다. |
+| **구독 분리** | `ChatRoomList`는 참가중 전체 방의 메시지 토픽을, `ChatRoomView`는 현재 방의 메시지+읽음 상태 토픽을 독립적으로 구독/해제한다. |
+| **활성 상태 독립** | 사용자 활성 상태(active/inactive)와 무관하게 WebSocket 연결을 유지한다. 비활성 시에는 해당 방의 구독만 해제한다. |
+| **연결 상태 리스너** | `WebSocketService.addConnectionListener(callback)`으로 연결 상태 변화를 구독하여 재연결 시 자동 재구독한다. |
 
 ### 상태 관리 (Zustand Store)
 
@@ -160,6 +180,8 @@ src/api/
 
 src/services/
 └── WebSocketService.js   ← STOMP 연결/구독/발행 캡슐화
+                             ※ 연결 상태 변경 리스너 지원
+                               addConnectionListener(callback) → unsubscribe fn
 ```
 
 ---
