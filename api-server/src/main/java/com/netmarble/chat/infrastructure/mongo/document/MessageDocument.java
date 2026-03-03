@@ -1,3 +1,4 @@
+// Phase 2: MongoDB 메시지 Document — senderNickname 비정규화로 JOIN 없이 조회 가능
 package com.netmarble.chat.infrastructure.mongo.document;
 
 import lombok.Builder;
