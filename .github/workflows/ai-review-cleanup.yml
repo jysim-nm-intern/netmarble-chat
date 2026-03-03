@@ -25,11 +25,15 @@ jobs:
           script: |
             /**
              * 봇 계정 판별
-             * - 일반 봇: 로그인명이 '[bot]'으로 끝남 (예: copilot-pull-request-reviewer[bot], github-actions[bot])
-             * - 예외: GitHub Copilot 인라인 리뷰 코멘트의 author.login은 'Copilot' (대문자, [bot] 미포함)
+             * - 일반 봇: 로그인명이 '[bot]'으로 끝남 (예: github-actions[bot], coderabbitai[bot])
+             * - GraphQL 예외: GitHub Copilot 인라인 리뷰의 author.login은 'copilot-pull-request-reviewer'
+             *   (REST API에서는 'Copilot', GraphQL에서는 '[bot]' 접미사 없는 서비스 계정 이름으로 반환됨)
              * - login이 null/undefined인 경우(삭제된 사용자 등)는 봇이 아닌 것으로 간주해 보존
              */
-            const KNOWN_BOT_LOGINS = new Set(['Copilot']);
+            const KNOWN_BOT_LOGINS = new Set([
+              'Copilot',                          // REST API 응답 시 사용되는 로그인명
+              'copilot-pull-request-reviewer',    // GraphQL 응답 시 사용되는 로그인명
+            ]);
 
             function isBot(login) {
               if (login == null) return false;
@@ -46,6 +50,7 @@ jobs:
                       nodes {
                         id
                         isResolved
+                        isOutdated
                         comments(first: 50) {
                           # 첫 페이지만 가져오고, 50개 초과 시 commentQuery로 추가 페이지 처리
                           pageInfo { hasNextPage endCursor }
@@ -133,11 +138,14 @@ jobs:
               const hasHumanReply = comments.some(c => !isBot(c.author?.login));
               if (hasHumanReply) continue;
 
-              // 🗑️ 삭제 대상: 봇이 시작했고, 미해결이며, 사람 개입이 없는 고립된 스레드
+              // ✅ 보존 규칙 3: 봇 단독이지만 최신 코드를 가리키는 스레드 — 현재 진행 중인 AI 리뷰
+              // isOutdated: true = 커밋 후 참조 코드가 변경된 낡은 스레드 → 삭제 대상
+              // isOutdated: false = 현재 코드를 가리키는 최신 리뷰 → 보존
               const firstAuthor = comments[0]?.author?.login;
               if (!firstAuthor || !isBot(firstAuthor)) continue;
+              if (!thread.isOutdated) continue;
 
-              console.log(`삭제 대상 발견: 봇 단독 미해결 스레드 (코멘트 ${comments.length}개, 작성자: ${firstAuthor})`);
+              console.log(`삭제 대상 발견: outdated 봇 단독 스레드 (코멘트 ${comments.length}개, 작성자: ${firstAuthor})`);
 
               for (const comment of comments) {
                 try {
