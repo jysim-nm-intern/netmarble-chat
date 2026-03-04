@@ -6,11 +6,13 @@ on:
     paths:
       - 'client/src/**'
       - 'client/package*.json'
+      - 'client/vite.config.*'
   pull_request:
     branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
       - 'client/src/**'
       - 'client/package*.json'
+      - 'client/vite.config.*'
 
 jobs:
   unit-test:
