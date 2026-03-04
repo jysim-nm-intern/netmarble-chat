@@ -19,9 +19,9 @@
 │   ✅ WebSocket / STOMP 사용 영역 (실시간 이벤트)                   │
 │      ├── 메시지 전송     (/app/chat.message)                     │
 │      ├── 읽음 처리      (/app/chat.read)                         │
-│      ├── 실시간 수신    (/topic/chatroom/{id})                   │
-│      ├── 읽음 상태 수신  (/topic/chatroom/{id}/read-status)      │
-│      └── 채팅방 목록 실시간 갱신 (/topic/chatroom/{id} × N)       │
+│      ├── 실시간 수신    (/topic/chatroom.{id})                   │
+│      ├── 읽음 상태 수신  (/topic/chatroom.{id}.read-status)      │
+│      └── 채팅방 목록 실시간 갱신 (/topic/chatroom.{id} × N)       │
 │           → 참가중 채팅방의 lastMessage·unreadCount 실시간 반영    │
 │                                                                 │
 │   ❌ 금지: 실시간 메시지 전송에 REST API 사용                       │

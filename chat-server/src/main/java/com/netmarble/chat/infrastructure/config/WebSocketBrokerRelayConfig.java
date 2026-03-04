@@ -1,5 +1,6 @@
 package com.netmarble.chat.infrastructure.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
@@ -8,17 +9,35 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
 /**
- * SimpleBroker 기반 WebSocket 설정 (default/test 프로파일)
- * RabbitMQ 없이 JVM 내 메모리로 STOMP 메시지를 라우팅한다.
+ * RabbitMQ STOMP Relay 기반 WebSocket 설정 (scale 프로파일)
+ * 외부 RabbitMQ 브로커를 통해 다중 chat-server 인스턴스 간 메시지를 동기화한다.
  */
 @Configuration
 @EnableWebSocketMessageBroker
-@Profile("!scale")
-public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+@Profile("scale")
+public class WebSocketBrokerRelayConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Value("${rabbitmq.stomp.host}")
+    private String relayHost;
+
+    @Value("${rabbitmq.stomp.port}")
+    private int relayPort;
+
+    @Value("${rabbitmq.stomp.login}")
+    private String relayLogin;
+
+    @Value("${rabbitmq.stomp.passcode}")
+    private String relayPasscode;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        config.enableSimpleBroker("/topic", "/queue");
+        config.enableStompBrokerRelay("/topic", "/queue")
+                .setRelayHost(relayHost)
+                .setRelayPort(relayPort)
+                .setClientLogin(relayLogin)
+                .setClientPasscode(relayPasscode)
+                .setSystemLogin(relayLogin)
+                .setSystemPasscode(relayPasscode);
         config.setApplicationDestinationPrefixes("/app");
     }
 

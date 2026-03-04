@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const apiBaseUrl = 'http://localhost:8080';
+const apiBaseUrl = process.env.E2E_API_BASE || 'http://localhost:8080';
 
 // ─────────────────────────────────────────────
 // 공통 헬퍼
@@ -1331,4 +1331,56 @@ test('검색 결과 이동 시 메시지 버블에 바운스 애니메이션 적
   // 이동한 메시지 버블에 바운스 애니메이션 인라인 스타일이 적용되어야 함 (AC-MSG-005-7)
   const bouncingBubble = page.locator('[style*="message-bounce"]');
   await expect(bouncingBubble.first()).toBeVisible({ timeout: 3000 });
+});
+
+// ─────────────────────────────────────────────
+// E2E-SCALE-001 | 크로스 인스턴스 실시간 메시지 동기화
+// Nginx 로드밸런싱 환경에서 서로 다른 chat-server 인스턴스에
+// 연결된 두 사용자 간 실시간 메시지 수신을 검증한다.
+// ─────────────────────────────────────────────
+test('크로스 인스턴스 실시간 메시지 동기화 — 두 브라우저 컨텍스트 간 메시지 수신', async ({ browser, request }) => {
+  const senderNickname = `sender_${Date.now()}`;
+  const receiverNickname = `receiver_${Date.now()}`;
+  const roomName = `scale_room_${Date.now()}`;
+  const testMessage = `cross_instance_${Date.now()}`;
+
+  // REST API로 사용자 및 채팅방 생성
+  const sender = await createUser(request, senderNickname);
+  const receiver = await createUser(request, receiverNickname);
+  const chatRoom = await createChatRoom(request, sender.id, roomName);
+  await joinChatRoom(request, chatRoom.id, receiver.id);
+
+  // 두 개의 독립 브라우저 컨텍스트 (Nginx를 통해 서로 다른 chat-server에 연결될 수 있음)
+  const senderContext = await browser.newContext();
+  const receiverContext = await browser.newContext();
+  const senderPage = await senderContext.newPage();
+  const receiverPage = await receiverContext.newPage();
+
+  // 수신자 먼저 로그인 → 채팅방 입장 → WebSocket 구독 대기
+  await receiverPage.goto('/login');
+  await receiverPage.getByLabel('닉네임').fill(receiver.nickname);
+  await receiverPage.getByRole('button', { name: '채팅 시작' }).click();
+  await receiverPage.waitForURL('**/');
+  await receiverPage.getByText(roomName).click();
+  await waitForSubscribed(receiverPage);
+
+  // 발신자 로그인 → 채팅방 입장 → 메시지 전송
+  await senderPage.goto('/login');
+  await senderPage.getByLabel('닉네임').fill(sender.nickname);
+  await senderPage.getByRole('button', { name: '채팅 시작' }).click();
+  await senderPage.waitForURL('**/');
+  await senderPage.getByText(roomName).click();
+  await waitForConnected(senderPage);
+
+  await senderPage.getByPlaceholder(/메시지를 입력하세요/).fill(testMessage);
+  await senderPage.getByRole('button', { name: '전송' }).click();
+
+  // 발신자 화면에서 메시지 표시 확인
+  await expect(senderPage.getByText(testMessage)).toBeVisible();
+
+  // 수신자 화면에서 실시간 메시지 수신 확인 (크로스 인스턴스 동기화)
+  await expect(receiverPage.getByText(testMessage)).toBeVisible({ timeout: 10000 });
+
+  await senderContext.close();
+  await receiverContext.close();
 });

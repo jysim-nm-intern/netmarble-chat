@@ -196,7 +196,7 @@ describe('WebSocketService', () => {
 
       expect(sub).not.toBeNull();
       expect(mockSubscribe).toHaveBeenCalledWith(
-        '/topic/chatroom/1',
+        '/topic/chatroom.1',
         expect.any(Function)
       );
     });

@@ -35,7 +35,7 @@ public class WebSocketMessageController {
      * 클라이언트에서 /app/chat.sendMessage로 메시지를 보내면
      * 1) MySQL 저장 (관계형 데이터, unreadCount 처리)
      * 2) MongoDB 비동기 저장 (api-server cursor-based 페이징용)
-     * 3) /topic/chatroom/{chatRoomId} 브로드캐스트
+     * 3) /topic/chatroom.{chatRoomId} 브로드캐스트
      */
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(@Payload @Valid SendMessageRequest request) {
@@ -51,11 +51,11 @@ public class WebSocketMessageController {
 
             // 3) 채팅방 구독자들에게 브로드캐스트
             messagingTemplate.convertAndSend(
-                "/topic/chatroom/" + request.getChatRoomId(),
+                "/topic/chatroom." + request.getChatRoomId(),
                 response
             );
-            
-            log.info("Message broadcasted to /topic/chatroom/{}", request.getChatRoomId());
+
+            log.info("Message broadcasted to /topic/chatroom.{}", request.getChatRoomId());
         } catch (Exception e) {
             log.error("Error sending message", e);
             messagingTemplate.convertAndSendToUser(
@@ -95,7 +95,7 @@ public class WebSocketMessageController {
             MessageResponse response = messageApplicationService.sendMessage(request);
             
             messagingTemplate.convertAndSend(
-                "/topic/chatroom/" + request.getChatRoomId(), 
+                "/topic/chatroom." + request.getChatRoomId(),
                 response
             );
         } catch (Exception e) {

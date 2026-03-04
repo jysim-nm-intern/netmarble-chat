@@ -88,7 +88,7 @@ class ReadStatusApplicationServiceTest {
         assertDoesNotThrow(() -> readStatusApplicationService.markAsRead(1L, 10L));
 
         verify(chatRoomMemberRepository).save(any(ChatRoomMember.class));
-        verify(messagingTemplate).convertAndSend(eq("/topic/chatroom/10/read-status"), any(Object.class));
+        verify(messagingTemplate).convertAndSend(eq("/topic/chatroom.10.read-status"), any(Object.class));
     }
 
     @Test
