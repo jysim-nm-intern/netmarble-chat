@@ -13,12 +13,12 @@ public interface ChatRoomMemberRepository {
     ChatRoomMember save(ChatRoomMember member);
 
     /**
-     * 특정 채팅방의 활성 멤버 단건 조회 (lastReadMessage JOIN FETCH 포함)
+     * 특정 채팅방의 활성 멤버 단건 조회
      */
     Optional<ChatRoomMember> findActiveByChatRoomIdAndUserId(Long chatRoomId, Long userId);
 
     /**
-     * 유저가 활성 멤버로 참가 중인 채팅방 ID 목록 조회 (단일 쿼리)
+     * 유저가 활성 멤버로 참가 중인 채팅방 ID 목록 조회
      */
     Set<Long> findActiveChatRoomIdsByUserId(Long userId);
 }
