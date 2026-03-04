@@ -1,14 +1,14 @@
 ## ADDED Requirements
 
 ### Requirement: RabbitMQ STOMP Relay 연결
-시스템은 `scale` 또는 `docker` 프로파일 활성화 시 RabbitMQ STOMP 플러그인(포트 61613)에 StompBrokerRelay로 연결하여 `/topic` 및 `/queue` 목적지의 메시지를 라우팅해야 한다(SHALL).
+시스템은 `scale` 프로파일 활성화 시 RabbitMQ STOMP 플러그인(포트 61613)에 StompBrokerRelay로 연결하여 `/topic` 및 `/queue` 목적지의 메시지를 라우팅해야 한다(SHALL). Docker Compose에서는 `SPRING_PROFILES_ACTIVE=docker,scale`로 설정한다.
 
 #### Scenario: scale 프로파일에서 RabbitMQ 연결 성공
-- **WHEN** `SPRING_PROFILES_ACTIVE=docker`로 chat-server를 기동한다
+- **WHEN** `SPRING_PROFILES_ACTIVE=docker,scale`로 chat-server를 기동한다
 - **THEN** StompBrokerRelay가 RabbitMQ의 STOMP 포트(61613)에 TCP 연결을 수립하고, 시스템 로그에 "Connected to RabbitMQ STOMP broker" 수준의 연결 성공 로그가 출력된다
 
 #### Scenario: RabbitMQ 미실행 시 기동 실패
-- **WHEN** RabbitMQ가 실행되지 않은 상태에서 `SPRING_PROFILES_ACTIVE=docker`로 chat-server를 기동한다
+- **WHEN** RabbitMQ가 실행되지 않은 상태에서 `SPRING_PROFILES_ACTIVE=docker,scale`로 chat-server를 기동한다
 - **THEN** 시스템은 RabbitMQ 연결 실패 예외를 발생시키고 정상 기동되지 않는다
 
 ### Requirement: SimpleBroker 폴백 유지
