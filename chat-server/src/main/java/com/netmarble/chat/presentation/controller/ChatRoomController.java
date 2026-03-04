@@ -3,6 +3,7 @@ package com.netmarble.chat.presentation.controller;
 import com.netmarble.chat.application.dto.*;
 import com.netmarble.chat.application.service.ChatRoomApplicationService;
 import com.netmarble.chat.application.service.MessageApplicationService;
+import com.netmarble.chat.domain.service.FileStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -26,6 +27,7 @@ public class ChatRoomController {
     private final ChatRoomApplicationService chatRoomApplicationService;
     private final MessageApplicationService messageApplicationService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final FileStorageService fileStorageService;
 
     /**
      * 채팅방 생성
@@ -44,33 +46,12 @@ public class ChatRoomController {
 
         String imageUrl = null;
         if (image != null && !image.isEmpty()) {
-            imageUrl = encodeImageToBase64(image);
+            imageUrl = fileStorageService.store(image, "rooms");
         }
 
         CreateChatRoomRequest request = new CreateChatRoomRequest(name, creatorId, imageUrl);
         ChatRoomResponse response = chatRoomApplicationService.createChatRoom(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    /**
-     * 이미지 파일을 Base64 Data URL로 변환
-     */
-    private String encodeImageToBase64(MultipartFile image) {
-        String contentType = image.getContentType();
-        if (contentType == null ||
-                (!contentType.equals("image/jpeg") && !contentType.equals("image/png") && !contentType.equals("image/gif"))) {
-            throw new IllegalArgumentException("JPG, PNG, GIF 형식만 지원합니다.");
-        }
-        if (image.getSize() > 5L * 1024 * 1024) {
-            throw new IllegalArgumentException("이미지 크기가 5MB를 초과합니다.");
-        }
-        try {
-            byte[] bytes = image.getBytes();
-            String base64 = java.util.Base64.getEncoder().encodeToString(bytes);
-            return "data:" + contentType + ";base64," + base64;
-        } catch (java.io.IOException e) {
-            throw new IllegalArgumentException("이미지 처리 중 오류가 발생했습니다.");
-        }
     }
 
     /**
@@ -133,7 +114,7 @@ public class ChatRoomController {
         List<ChatRoomMemberResponse> response = chatRoomApplicationService.getActiveChatRoomMembers(id);
         return ResponseEntity.ok(response);
     }
-    
+
     /**
      * 채팅방 멤버 활성 상태 업데이트
      * PUT /api/chat-rooms/{id}/members/status
@@ -142,12 +123,12 @@ public class ChatRoomController {
     public ResponseEntity<Void> updateMemberStatus(
             @PathVariable Long id,
             @RequestBody UpdateActiveStatusRequest request) {
-        log.info("PUT /api/chat-rooms/{}/members/status - Updating status for user {}", 
+        log.info("PUT /api/chat-rooms/{}/members/status - Updating status for user {}",
                  id, request.getUserId());
         chatRoomApplicationService.updateMemberActiveStatus(id, request.getUserId(), request.isOnline());
         return ResponseEntity.ok().build();
     }
-    
+
     /**
      * 채팅방 멤버 활동 업데이트 (하트비트)
      * POST /api/chat-rooms/{id}/members/heartbeat
@@ -165,28 +146,23 @@ public class ChatRoomController {
      * POST /api/chat-rooms/{id}/messages
      * Body: { chatRoomId, senderId, content, messageType, fileName }
      */
-    /**
-     * 메시지 전송 (REST API)
-     * POST /api/chat-rooms/{id}/messages
-     * Body: { chatRoomId, senderId, content, messageType, fileName }
-     */
     @PostMapping("/{id}/messages")
     public ResponseEntity<MessageResponse> sendMessage(
             @PathVariable Long id,
             @RequestBody SendMessageRequest request) {
-        log.info("POST /api/chat-rooms/{}/messages - Sending message from user {}", 
+        log.info("POST /api/chat-rooms/{}/messages - Sending message from user {}",
                  id, request.getSenderId());
-        
+
         // URL 경로의 ID가 요청의 chatRoomId와 일치하는지 검증
         if (request.getChatRoomId() == null) {
             request.setChatRoomId(id);
         } else if (!request.getChatRoomId().equals(id)) {
             log.warn("URL path ID {} does not match request chatRoomId {}", id, request.getChatRoomId());
         }
-        
+
         // 메시지 전송
         MessageResponse response = messageApplicationService.sendMessage(request);
-        
+
         // WebSocket으로 브로드캐스트
         try {
             messagingTemplate.convertAndSend(
@@ -197,7 +173,7 @@ public class ChatRoomController {
         } catch (Exception e) {
             log.warn("Failed to broadcast message via WebSocket", e);
         }
-        
+
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -211,74 +187,40 @@ public class ChatRoomController {
             @RequestParam Long userId,
             @RequestParam(required = false, defaultValue = "0") Long chatRoomId,
             @RequestParam MultipartFile file) {
+        log.info("POST /api/chat-rooms/{}/messages/upload - User {} uploading image {}",
+                 id, userId, file.getOriginalFilename());
+
+        // 파일 유효성 검증
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        // FileStorageService로 파일 저장 (검증 포함)
+        String fileUrl = fileStorageService.store(file, "messages");
+
+        // 메시지 요청 생성 (URL 경로를 content에 저장)
+        SendMessageRequest request = new SendMessageRequest();
+        request.setChatRoomId(id);
+        request.setSenderId(userId);
+        request.setContent(fileUrl);
+        request.setMessageType("IMAGE");
+        request.setFileName(file.getOriginalFilename());
+
+        // 메시지 전송
+        MessageResponse response = messageApplicationService.sendMessage(request);
+
+        // WebSocket으로 브로드캐스트
         try {
-            log.info("POST /api/chat-rooms/{}/messages/upload - User {} uploading image {}", 
-                     id, userId, file.getOriginalFilename());
-            
-            // 파일 유효성 검증
-            if (file.isEmpty()) {
-                return ResponseEntity.badRequest().build();
-            }
-            
-            // 이미지 파일만 허용
-            String contentType = file.getContentType();
-            if (contentType == null || !contentType.startsWith("image/")) {
-                throw new IllegalArgumentException("이미지 파일만 업로드 가능합니다.");
-            }
-            
-            // 파일 크기 검증 (7.5MB)
-            if (file.getSize() > 7.5 * 1024 * 1024) {
-                throw new IllegalArgumentException("파일 크기가 7.5MB를 초과합니다.");
-            }
-            
-            // 이미지를 Base64로 변환
-            byte[] fileBytes = file.getBytes();
-            String base64Image = java.util.Base64.getEncoder().encodeToString(fileBytes);
-            
-            // 메시지 요청 생성
-            SendMessageRequest request = new SendMessageRequest();
-            request.setChatRoomId(id);
-            request.setSenderId(userId);
-            request.setContent("data:image/" + getImageFormat(file.getOriginalFilename()) + ";base64," + base64Image);
-            request.setMessageType("IMAGE");
-            request.setFileName(file.getOriginalFilename());
-            
-            // 메시지 전송
-            MessageResponse response = messageApplicationService.sendMessage(request);
-            
-            // WebSocket으로 브로드캐스트
-            try {
-                messagingTemplate.convertAndSend(
-                    "/topic/chatroom." + id,
-                    response
-                );
-                log.info("Image message broadcasted to /topic/chatroom.{}", id);
-            } catch (Exception e) {
-                log.warn("Failed to broadcast image message via WebSocket", e);
-            }
-            
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            messagingTemplate.convertAndSend(
+                "/topic/chatroom." + id,
+                response
+            );
+            log.info("Image message broadcasted to /topic/chatroom.{}", id);
         } catch (Exception e) {
-            log.error("Error uploading image", e);
-            throw new IllegalArgumentException(e.getMessage());
+            log.warn("Failed to broadcast image message via WebSocket", e);
         }
-    }
-    
-    /**
-     * 파일명에서 이미지 형식 추출
-     */
-    private String getImageFormat(String filename) {
-        if (filename == null) {
-            return "jpg";
-        }
-        String extension = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
-        switch (extension) {
-            case "jpg", "jpeg" -> { return "jpeg"; }
-            case "png" -> { return "png"; }
-            case "gif" -> { return "gif"; }
-            case "webp" -> { return "webp"; }
-            default -> { return "jpeg"; }
-        }
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     /**
