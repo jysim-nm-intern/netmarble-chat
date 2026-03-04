@@ -6,7 +6,7 @@
 
 ## 2. STOMP Broker Relay 전환
 
-- [x] 2.1 WebSocketConfig를 Profile 기반으로 분리 — SimpleBrokerConfig(default/test)와 StompBrokerRelayConfig(docker/scale)
+- [x] 2.1 WebSocketConfig를 Profile 기반으로 분리 — SimpleBrokerConfig(default/test)와 StompBrokerRelayConfig(scale)
 - [x] 2.2 StompBrokerRelayConfig에서 `enableStompBrokerRelay("/topic", "/queue")` 구현, RabbitMQ 연결 설정
 - [x] 2.3 기존 단위 테스트가 SimpleBroker(test 프로파일)에서 변경 없이 통과하는지 확인
 
