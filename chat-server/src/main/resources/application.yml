@@ -40,15 +40,23 @@ rabbitmq:
 server:
   port: 8080
 
-# Actuator — 헬스체크 엔드포인트
+# Actuator — 헬스체크 + 인스턴스 정보 엔드포인트
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info
   endpoint:
     health:
       show-details: never
+  info:
+    env:
+      enabled: true
+
+# 인스턴스 식별 정보 (크로스 인스턴스 검증용)
+info:
+  app:
+    instance-id: ${INSTANCE_ID:default}
 
 logging:
   level:

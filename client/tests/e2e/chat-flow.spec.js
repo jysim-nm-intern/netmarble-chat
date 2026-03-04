@@ -1372,6 +1372,19 @@ test('크로스 인스턴스 실시간 메시지 동기화 — 두 브라우저 
   await senderPage.getByText(roomName).click();
   await waitForConnected(senderPage);
 
+  // 인스턴스 식별 — scale 모드에서 Nginx 라우팅 검증
+  if (process.env.E2E_BASE_URL) {
+    const senderInfoRes = await senderPage.request.get('/actuator/info');
+    const receiverInfoRes = await receiverPage.request.get('/actuator/info');
+    const senderUpstream = senderInfoRes.headers()['x-upstream-server'] || 'unknown';
+    const receiverUpstream = receiverInfoRes.headers()['x-upstream-server'] || 'unknown';
+    test.info().annotations.push(
+      { type: 'sender-upstream', description: senderUpstream },
+      { type: 'receiver-upstream', description: receiverUpstream },
+      { type: 'cross-instance', description: senderUpstream !== receiverUpstream ? 'yes' : 'no (same server)' }
+    );
+  }
+
   await senderPage.getByPlaceholder(/메시지를 입력하세요/).fill(testMessage);
   await senderPage.getByRole('button', { name: '전송' }).click();
 
