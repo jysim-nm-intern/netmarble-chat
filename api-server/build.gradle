@@ -23,30 +23,12 @@ repositories {
 }
 
 dependencies {
-    // 공통 도메인 모듈
-    implementation project(':common-domain')
-
     // Spring Boot Starters
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-websocket'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-security'
 
-    // MongoDB
+    // MongoDB — 메시지 이력 조회, cursor-based 페이징
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
-
-    // Redis
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-
-    // JWT
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
-    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
-
-    // Database
-    runtimeOnly 'com.mysql:mysql-connector-j'
-    runtimeOnly 'com.h2database:h2'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'
@@ -54,16 +36,10 @@ dependencies {
 
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'org.testcontainers:testcontainers'
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:mysql'
-    testImplementation 'org.testcontainers:mongodb'
-
-    // ArchUnit — 의존성 방향 규칙 검증
-    testImplementation 'com.tngtech.archunit:archunit-junit5:1.2.1'
+    testImplementation 'de.flapdoodle.embed:de.flapdoodle.embed.mongo.spring30x:4.11.0'
 }
 
+// ─── 단위 테스트 (integration 태그 제외, 외부 DB 불필요) ────────────────────
 tasks.named('test') {
     useJUnitPlatform {
         excludeTags 'integration'
@@ -71,12 +47,19 @@ tasks.named('test') {
     finalizedBy jacocoTestReport
 }
 
+// ─── 통합 테스트 (MongoDB + MySQL 필요) ──────────────────────────────────────
 tasks.register('integrationTest', Test) {
-    description = '통합 테스트 실행 (로컬 MySQL/MongoDB 필요)'
+    description = '통합 테스트 실행 (MongoDB + MySQL 필요)'
     group = 'verification'
     useJUnitPlatform {
         includeTags 'integration'
     }
+    shouldRunAfter test
+}
+
+// ─── JaCoCo ──────────────────────────────────────────────────────────────────
+jacoco {
+    toolVersion = '0.8.11'
 }
 
 jacocoTestReport {

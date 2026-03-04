@@ -188,8 +188,13 @@ CREATE TABLE `attachment` (
 
 ## Phase 2 — MongoDB 컬렉션 스키마 (SPEC-DB-002)
 
-> Phase 2부터 메시지 및 읽음 상태는 MySQL에서 MongoDB로 전환됩니다.  
+> Phase 2부터 메시지 저장은 MongoDB로 전환됩니다.  
 > **비정규화(Denormalization)** 전략으로 JOIN 없이 단일 문서에서 응답을 완성합니다.
+>
+> **2서버 아키텍처에서의 역할 분담:**
+> - **chat-server** → MongoDB `messages` 컬렉션에 비동기 쓰기 (`@Async`)
+> - **api-server** → MongoDB `messages` 컬렉션에서 읽기 전용 (cursor-based 페이징)
+> - MySQL은 chat-server에서만 사용 (유저, 채팅방, 멤버십 관계형 데이터)
 
 ### 2-1. `messages` 컬렉션
 
