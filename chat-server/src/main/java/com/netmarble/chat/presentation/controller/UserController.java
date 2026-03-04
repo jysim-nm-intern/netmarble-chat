@@ -45,7 +45,13 @@ public class UserController {
 
         String profileImage = null;
         if (image != null && !image.isEmpty()) {
-            profileImage = fileStorageService.store(image, "profiles");
+            try {
+                profileImage = fileStorageService.store(
+                        image.getInputStream(), image.getContentType(),
+                        image.getOriginalFilename(), image.getSize(), "profiles");
+            } catch (java.io.IOException e) {
+                throw new RuntimeException("파일 읽기 실패", e);
+            }
         }
 
         CreateUserRequest request = new CreateUserRequest(nickname, profileColor, profileImage);

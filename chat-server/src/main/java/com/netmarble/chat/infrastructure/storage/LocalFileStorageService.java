@@ -4,15 +4,16 @@ import com.netmarble.chat.domain.service.FileStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -24,9 +25,14 @@ import java.util.UUID;
 @Service
 public class LocalFileStorageService implements FileStorageService {
 
-    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
-            "image/jpeg", "image/png", "image/gif"
+    private static final Set<String> ALLOWED_TYPES = Set.of("profiles", "rooms", "messages");
+
+    private static final Map<String, String> CONTENT_TYPE_TO_EXTENSION = Map.of(
+            "image/jpeg", "jpg",
+            "image/png", "png",
+            "image/gif", "gif"
     );
+
     private static final long MAX_FILE_SIZE = 5L * 1024 * 1024; // 5MB
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
@@ -43,14 +49,21 @@ public class LocalFileStorageService implements FileStorageService {
     }
 
     @Override
-    public String store(MultipartFile file, String type) {
-        validateFile(file);
+    public String store(InputStream inputStream, String contentType, String originalFilename, long fileSize, String type) {
+        validateType(type);
+        validateContentType(contentType);
+        validateFileSize(fileSize);
 
-        String extension = extractExtension(file.getOriginalFilename());
+        String extension = CONTENT_TYPE_TO_EXTENSION.get(contentType);
         String datePath = LocalDate.now().format(DATE_FORMAT);
         String fileName = UUID.randomUUID() + "." + extension;
 
-        Path targetDir = uploadDir.resolve(type).resolve(datePath);
+        Path targetDir = uploadDir.resolve(type).resolve(datePath).normalize();
+        // 디렉토리 탈출 방지 (type 화이트리스트로 1차 차단, normalize 후 2차 검증)
+        if (!targetDir.startsWith(uploadDir)) {
+            throw new IllegalArgumentException("잘못된 저장 경로입니다.");
+        }
+
         try {
             Files.createDirectories(targetDir);
         } catch (IOException e) {
@@ -59,7 +72,7 @@ public class LocalFileStorageService implements FileStorageService {
 
         Path targetPath = targetDir.resolve(fileName);
         try {
-            Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
             log.info("파일 저장 완료: {}", targetPath);
         } catch (IOException e) {
             throw new RuntimeException("파일 저장 실패: " + targetPath, e);
@@ -93,29 +106,24 @@ public class LocalFileStorageService implements FileStorageService {
         }
     }
 
-    private void validateFile(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("파일이 비어있습니다.");
-        }
-
-        String contentType = file.getContentType();
-        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
-            throw new IllegalArgumentException("JPG, PNG, GIF 형식만 지원합니다.");
-        }
-
-        if (file.getSize() > MAX_FILE_SIZE) {
-            throw new IllegalArgumentException("이미지 크기가 5MB를 초과합니다.");
+    private void validateType(String type) {
+        if (type == null || !ALLOWED_TYPES.contains(type)) {
+            throw new IllegalArgumentException("허용되지 않는 저장 유형입니다: " + type);
         }
     }
 
-    private String extractExtension(String filename) {
-        if (filename == null || !filename.contains(".")) {
-            return "jpg";
+    private void validateContentType(String contentType) {
+        if (contentType == null || !CONTENT_TYPE_TO_EXTENSION.containsKey(contentType)) {
+            throw new IllegalArgumentException("JPG, PNG, GIF 형식만 지원합니다.");
         }
-        String ext = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
-        return switch (ext) {
-            case "jpeg" -> "jpg";
-            default -> ext;
-        };
+    }
+
+    private void validateFileSize(long fileSize) {
+        if (fileSize <= 0) {
+            throw new IllegalArgumentException("파일이 비어있습니다.");
+        }
+        if (fileSize > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException("이미지 크기가 5MB를 초과합니다.");
+        }
     }
 }

@@ -13,6 +13,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -46,7 +47,13 @@ public class ChatRoomController {
 
         String imageUrl = null;
         if (image != null && !image.isEmpty()) {
-            imageUrl = fileStorageService.store(image, "rooms");
+            try {
+                imageUrl = fileStorageService.store(
+                        image.getInputStream(), image.getContentType(),
+                        image.getOriginalFilename(), image.getSize(), "rooms");
+            } catch (IOException e) {
+                throw new RuntimeException("파일 읽기 실패", e);
+            }
         }
 
         CreateChatRoomRequest request = new CreateChatRoomRequest(name, creatorId, imageUrl);
@@ -190,13 +197,15 @@ public class ChatRoomController {
         log.info("POST /api/chat-rooms/{}/messages/upload - User {} uploading image {}",
                  id, userId, file.getOriginalFilename());
 
-        // 파일 유효성 검증
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest().build();
-        }
-
         // FileStorageService로 파일 저장 (검증 포함)
-        String fileUrl = fileStorageService.store(file, "messages");
+        String fileUrl;
+        try {
+            fileUrl = fileStorageService.store(
+                    file.getInputStream(), file.getContentType(),
+                    file.getOriginalFilename(), file.getSize(), "messages");
+        } catch (IOException e) {
+            throw new RuntimeException("파일 읽기 실패", e);
+        }
 
         // 메시지 요청 생성 (URL 경로를 content에 저장)
         SendMessageRequest request = new SendMessageRequest();
