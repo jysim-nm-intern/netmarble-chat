@@ -28,6 +28,8 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// Phase 2: common-domain은 순수 Java 모듈 (Spring/JPA 의존 없음)
+
 tasks.named('test') {
     useJUnitPlatform()
 }

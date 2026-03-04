@@ -22,8 +22,15 @@ public class ChatRoomMember {
     private LocalDateTime lastActiveAt;
     private Long lastReadMessageId;
 
-    public ChatRoomMember(Long chatRoomId, Long userId) {
-        this.chatRoomId = chatRoomId;
+    /**
+     * 도메인 신규 멤버 생성용 생성자.
+     * chatRoomId는 집계 루트(ChatRoom)가 저장된 이후 인프라 계층에서 설정되므로
+     * 도메인 생성 시점에는 요구하지 않는다.
+     */
+    public ChatRoomMember(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("사용자 ID는 null일 수 없습니다.");
+        }
         this.userId = userId;
         this.joinedAt = LocalDateTime.now();
         this.active = true;
@@ -46,12 +53,18 @@ public class ChatRoomMember {
     }
 
     public void leave() {
+        if (!this.active) {
+            throw new IllegalStateException("이미 퇴장한 멤버입니다.");
+        }
         this.active = false;
         this.online = false;
         this.leftAt = LocalDateTime.now();
     }
 
     public void rejoin() {
+        if (this.active) {
+            throw new IllegalStateException("이미 활성 멤버입니다.");
+        }
         this.active = true;
         this.online = true;
         this.joinedAt = LocalDateTime.now();
