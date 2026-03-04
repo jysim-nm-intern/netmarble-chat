@@ -1374,8 +1374,8 @@ test('크로스 인스턴스 실시간 메시지 동기화 — 두 브라우저 
 
   // 인스턴스 식별 — scale 모드에서 Nginx 라우팅 검증
   if (process.env.E2E_BASE_URL) {
-    const senderInfoRes = await senderPage.request.get('/actuator/info');
-    const receiverInfoRes = await receiverPage.request.get('/actuator/info');
+    const senderInfoRes = await request.get(`${apiBaseUrl}/api/users`);
+    const receiverInfoRes = await request.get(`${apiBaseUrl}/api/users`);
     const senderUpstream = senderInfoRes.headers()['x-upstream-server'] || 'unknown';
     const receiverUpstream = receiverInfoRes.headers()['x-upstream-server'] || 'unknown';
     test.info().annotations.push(

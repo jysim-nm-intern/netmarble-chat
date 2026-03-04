@@ -72,15 +72,14 @@ services:
       start_period: 30s
 
   # ─────────────────────────────────────────────
-  # chat-server 단일 인스턴스 (profile: single)
-  # single/scale 프로파일로 분리하여 혼재 기동 방지
+  # chat-server 단일 인스턴스 (기본 프로파일)
+  # docker compose up 으로 바로 기동, scale 모드와 분리
   # ─────────────────────────────────────────────
   server:
     build:
       context: ./chat-server
       dockerfile: Dockerfile
     container_name: netmarble-chat-server
-    profiles: ["single"]
     environment:
       SPRING_PROFILES_ACTIVE: docker
       MYSQL_HOST: mysql
@@ -119,14 +118,13 @@ services:
         condition: service_healthy
 
   # ─────────────────────────────────────────────
-  # 프론트엔드 클라이언트 1 (profile: single, 포트 3000)
+  # 프론트엔드 클라이언트 1 (기본 프로파일, 포트 3000)
   # ─────────────────────────────────────────────
   client-3000:
     build:
       context: ./client
       dockerfile: Dockerfile
     container_name: netmarble-chat-client-3000
-    profiles: ["single"]
     environment:
       VITE_PORT: "3000"
       VITE_API_TARGET: "http://server:8080"
@@ -138,14 +136,13 @@ services:
       - server
 
   # ─────────────────────────────────────────────
-  # 프론트엔드 클라이언트 2 (profile: single, 포트 3001)
+  # 프론트엔드 클라이언트 2 (기본 프로파일, 포트 3001)
   # ─────────────────────────────────────────────
   client-3001:
     build:
       context: ./client
       dockerfile: Dockerfile
     container_name: netmarble-chat-client-3001
-    profiles: ["single"]
     environment:
       VITE_PORT: "3001"
       VITE_API_TARGET: "http://server:8080"
