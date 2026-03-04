@@ -38,7 +38,7 @@
   ↓ POST /api/chat-rooms/{id}/join → 방 입장
   ↓ WebSocket 연결 (/ws-stomp)
   ↓ STOMP CONNECT
-  ↓ SUBSCRIBE /topic/chatroom/{id} → 브로드캐스트 구독
+  ↓ SUBSCRIBE /topic/chatroom.{id} → 브로드캐스트 구독
   ↓ SEND /app/chat.sendMessage × N → 메시지 전송
   ↓ POST /api/read-status/mark-read → 읽음 처리 (REST)
   ↓ STOMP DISCONNECT
@@ -194,7 +194,7 @@
 
 ```
 /app/chat.message         → /app/chat.sendMessage
-/topic/room/{id}          → /topic/chatroom/{id}
+/topic/room/{id}          → /topic/chatroom.{id}
 STOMP /app/chat.read      → REST POST /api/read-status/mark-read
 roomId / userId 필드명    → chatRoomId / senderId
 ```

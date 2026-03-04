@@ -79,7 +79,7 @@ public class ReadStatusApplicationService {
             .type("READ_STATUS_UPDATE")
             .build();
         
-        messagingTemplate.convertAndSend("/topic/chatroom/" + chatRoomId + "/read-status", event);
+        messagingTemplate.convertAndSend("/topic/chatroom." + chatRoomId + ".read-status", event);
         log.info("[READ STATUS] 읽음 상태 업데이트 전송 - chatRoomId={}, userId={}, lastReadMessageId={}", 
                  chatRoomId, userId, lastMessage.getId());
     }

@@ -48,7 +48,32 @@ services:
       retries: 5
 
   # ─────────────────────────────────────────────
-  # chat-server (STOMP/WebSocket + MySQL + MongoDB 쓰기)
+  # RabbitMQ (STOMP 메시지 브로커, profile: scale)
+  # ─────────────────────────────────────────────
+  rabbitmq:
+    build:
+      context: ./rabbitmq
+      dockerfile: Dockerfile
+    container_name: netmarble-chat-rabbitmq
+    profiles: ["scale"]
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_ERLANG_COOKIE: "netmarble-chat-cookie"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+      - "61613:61613"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ─────────────────────────────────────────────
+  # chat-server 단일 인스턴스 (기본 프로파일)
+  # docker compose up 으로 바로 기동, scale 모드와 분리
   # ─────────────────────────────────────────────
   server:
     build:
@@ -93,7 +118,7 @@ services:
         condition: service_healthy
 
   # ─────────────────────────────────────────────
-  # 프론트엔드 클라이언트 1 (포트 3000)
+  # 프론트엔드 클라이언트 1 (기본 프로파일, 포트 3000)
   # ─────────────────────────────────────────────
   client-3000:
     build:
@@ -104,13 +129,14 @@ services:
       VITE_PORT: "3000"
       VITE_API_TARGET: "http://server:8080"
       VITE_WS_TARGET: "ws://server:8080"
+      VITE_API_BASE_URL: "/api"
     ports:
       - "3000:3000"
     depends_on:
       - server
 
   # ─────────────────────────────────────────────
-  # 프론트엔드 클라이언트 2 (포트 3001)
+  # 프론트엔드 클라이언트 2 (기본 프로파일, 포트 3001)
   # ─────────────────────────────────────────────
   client-3001:
     build:
@@ -121,10 +147,140 @@ services:
       VITE_PORT: "3001"
       VITE_API_TARGET: "http://server:8080"
       VITE_WS_TARGET: "ws://server:8080"
+      VITE_API_BASE_URL: "/api"
     ports:
       - "3001:3001"
     depends_on:
       - server
+
+  # ─────────────────────────────────────────────
+  # chat-server 다중 인스턴스 (profile: scale)
+  # ─────────────────────────────────────────────
+  chat-server-1:
+    build:
+      context: ./chat-server
+      dockerfile: Dockerfile
+    container_name: netmarble-chat-server-1
+    profiles: ["scale"]
+    environment:
+      SPRING_PROFILES_ACTIVE: docker,scale
+      INSTANCE_ID: chat-server-1
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MONGODB_URI: mongodb://mongodb:27017/netmarble_chat
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_STOMP_PORT: 61613
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  chat-server-2:
+    build:
+      context: ./chat-server
+      dockerfile: Dockerfile
+    container_name: netmarble-chat-server-2
+    profiles: ["scale"]
+    environment:
+      SPRING_PROFILES_ACTIVE: docker,scale
+      INSTANCE_ID: chat-server-2
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MONGODB_URI: mongodb://mongodb:27017/netmarble_chat
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_STOMP_PORT: 61613
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────
+  # Nginx 리버스 프록시 (profile: scale)
+  # ─────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: netmarble-chat-nginx
+    profiles: ["scale"]
+    ports:
+      - "8888:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      chat-server-1:
+        condition: service_healthy
+      chat-server-2:
+        condition: service_healthy
+      api-server:
+        condition: service_started
+
+  # ─────────────────────────────────────────────
+  # 프론트엔드 클라이언트 (profile: scale, Nginx 경유)
+  # ─────────────────────────────────────────────
+  client-scale-3002:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: netmarble-chat-client-scale-3002
+    profiles: ["scale"]
+    environment:
+      VITE_PORT: "3002"
+      VITE_API_TARGET: "http://nginx:80"
+      VITE_WS_TARGET: "ws://nginx:80"
+      VITE_API_BASE_URL: "/api"
+    ports:
+      - "3002:3002"
+    depends_on:
+      - nginx
+
+  client-scale-3003:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: netmarble-chat-client-scale-3003
+    profiles: ["scale"]
+    environment:
+      VITE_PORT: "3003"
+      VITE_API_TARGET: "http://nginx:80"
+      VITE_WS_TARGET: "ws://nginx:80"
+      VITE_API_BASE_URL: "/api"
+    ports:
+      - "3003:3003"
+    depends_on:
+      - nginx
 
   # ─────────────────────────────────────────────
   # 테스트 서비스 (profile: test)

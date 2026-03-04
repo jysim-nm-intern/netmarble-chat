@@ -190,10 +190,10 @@ public class ChatRoomController {
         // WebSocket으로 브로드캐스트
         try {
             messagingTemplate.convertAndSend(
-                "/topic/chatroom/" + id,
+                "/topic/chatroom." + id,
                 response
             );
-            log.info("Message broadcasted to /topic/chatroom/{}", id);
+            log.info("Message broadcasted to /topic/chatroom.{}", id);
         } catch (Exception e) {
             log.warn("Failed to broadcast message via WebSocket", e);
         }
@@ -249,10 +249,10 @@ public class ChatRoomController {
             // WebSocket으로 브로드캐스트
             try {
                 messagingTemplate.convertAndSend(
-                    "/topic/chatroom/" + id,
+                    "/topic/chatroom." + id,
                     response
                 );
-                log.info("Image message broadcasted to /topic/chatroom/{}", id);
+                log.info("Image message broadcasted to /topic/chatroom.{}", id);
             } catch (Exception e) {
                 log.warn("Failed to broadcast image message via WebSocket", e);
             }

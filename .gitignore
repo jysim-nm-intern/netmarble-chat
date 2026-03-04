@@ -52,7 +52,6 @@ out/
 /api-server/out/
 # Gradle wrapper 및 중요 경로는 제외(추적 유지)
 !gradle/wrapper/gradle-wrapper.jar
-!**/gradle/wrapper/gradle-wrapper.properties
 !**/src/main/**/build/
 !**/src/test/**/build/
 !**/src/main/**/out/
@@ -71,6 +70,9 @@ server/gradle.zip
 *.properties
 *.yml
 *.yaml
+
+# gradle-wrapper.properties는 추적 유지 (*.properties 이후에 선언해야 유효)
+!**/gradle/wrapper/gradle-wrapper.properties
 
 # .github 하위 워크플로우/템플릿 yml은 추적 유지
 !.github/**/*.yml
