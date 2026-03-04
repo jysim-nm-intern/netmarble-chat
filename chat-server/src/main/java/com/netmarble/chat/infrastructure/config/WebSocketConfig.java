@@ -8,7 +8,7 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
 /**
- * SimpleBroker 기반 WebSocket 설정 (default/test 프로파일)
+ * SimpleBroker 기반 WebSocket 설정 (scale 프로파일이 아닌 환경에서 활성화)
  * RabbitMQ 없이 JVM 내 메모리로 STOMP 메시지를 라우팅한다.
  */
 @Configuration
