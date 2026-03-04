@@ -252,7 +252,7 @@ public class ChatRoomController {
                     "/topic/chatroom." + id,
                     response
                 );
-                log.info("Image message broadcasted to /topic/chatroom/{}", id);
+                log.info("Image message broadcasted to /topic/chatroom.{}", id);
             } catch (Exception e) {
                 log.warn("Failed to broadcast image message via WebSocket", e);
             }
