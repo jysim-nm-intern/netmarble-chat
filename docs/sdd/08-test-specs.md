@@ -8,37 +8,37 @@
 
 | 종류 | 도구 | 범위 | 실행 명령 |
 |------|------|------|----------|
-| **BE 도메인 단위** | JUnit 5 + Mockito | Domain Model·Service 비즈니스 로직 | `cd server && ./gradlew test` |
-| **BE 애플리케이션 단위** | JUnit 5 + Mockito | Application Service 유즈케이스 | `cd server && ./gradlew test` |
-| **BE 컨트롤러** | JUnit 5 + `@WebMvcTest` | HTTP 요청/응답, 예외 처리 | `cd server && ./gradlew test` |
-| **BE 통합** | JUnit 5 + 실제 MySQL | Repository, DB 쿼리 검증 | `cd server && ./gradlew integrationTest` |
+| **BE 도메인 단위** | Jest | Domain Model·Service 비즈니스 로직 | `cd chat-server && npm test` |
+| **BE 애플리케이션 단위** | Jest + `@nestjs/testing` | Application Service 유즈케이스 | `cd chat-server && npm test` |
+| **BE 컨트롤러** | Jest + `@nestjs/testing` | HTTP 요청/응답, 예외 처리 | `cd chat-server && npm test` |
+| **BE 통합** | Jest + 실제 MySQL | Repository, DB 쿼리 검증 | `cd chat-server && npm run test:e2e` |
 | **FE 단위/컴포넌트** | Vitest + React Testing Library | 컴포넌트 렌더링, 사용자 상호작용 | `cd client && npm run test` |
 | **E2E** | Playwright | 핵심 사용자 시나리오 전체 흐름 | `cd client && npm run test:e2e` |
 
-> **통합 테스트 전제 조건:** `@Tag("integration")` 클래스는 MySQL(`localhost:3306`)이 실행 중이어야 한다.
-> 단위 테스트(`./gradlew test`)는 외부 인프라 없이 항상 실행 가능하다.
+> **통합 테스트 전제 조건:** `*.e2e-spec.ts` 파일은 MySQL(`localhost:3306`)이 실행 중이어야 한다.
+> 단위 테스트(`npm test`)는 외부 인프라 없이 항상 실행 가능하다.
 
 ---
 
-## 커버리지 정책 (JaCoCo)
+## 커버리지 정책 (Jest)
 
 > 핵심 비즈니스 로직을 구현하거나 수정할 때 아래 기준을 충족하는 단위 테스트를 함께 작성한다.
-> 커버리지 기준은 [07. 비기능 명세 SPEC-NFR-005](07-non-functional.md#spec-nfr-005-테스트-커버리지-jacoco)를 따른다.
+> 커버리지 기준은 [07. 비기능 명세 SPEC-NFR-005](07-non-functional.md#spec-nfr-005-테스트-커버리지-jest)를 따른다.
 
 | 계층 | 목표 | 현재 (단위 테스트 기준) |
 |-----|------|----------------------|
-| `domain.service` | 90% 이상 | ✅ 100% |
-| `domain.model` | 80% 이상 | ✅ 87% |
-| `application.service` | 70% 이상 | ✅ 73% |
-| `presentation.controller` | 50% 이상 | 🔴 6% (추가 필요) |
-| **전체** | **60% 이상** | 🟡 55% (진행 중) |
+| `src/domain/service/` | 90% 이상 | ⬜ NestJS 마이그레이션 후 측정 |
+| `src/domain/model/` | 80% 이상 | ⬜ NestJS 마이그레이션 후 측정 |
+| `src/application/service/` | 70% 이상 | ⬜ NestJS 마이그레이션 후 측정 |
+| `src/presentation/controller/` | 50% 이상 | ⬜ NestJS 마이그레이션 후 측정 |
+| **전체** | **60% 이상** | ⬜ NestJS 마이그레이션 후 측정 |
 
 ```bash
 # 커버리지 보고서 생성
-cd server && ./gradlew test jacocoTestReport
+cd chat-server && npm test -- --coverage
 
 # 보고서 확인
-server/build/reports/jacoco/test/html/index.html
+chat-server/coverage/lcov-report/index.html
 ```
 
 ---
@@ -212,98 +212,100 @@ server/build/reports/jacoco/test/html/index.html
 **체크리스트 (PR 머지 전 확인):**
 - [ ] 새로 추가된 public 메서드에 대응하는 테스트가 존재하는가?
 - [ ] 예외 발생 케이스(잘못된 입력, 존재하지 않는 엔티티)가 테스트되는가?
-- [ ] `./gradlew test jacocoTestReport` 실행 후 커버리지가 목표치를 충족하는가?
+- [ ] `npm test -- --coverage` 실행 후 커버리지가 목표치를 충족하는가?
 
 ---
 
-### 백엔드: 단위 테스트 패턴 (JUnit 5 + Mockito)
+### 백엔드: 단위 테스트 패턴 (Jest + @nestjs/testing)
 
 **도메인 모델 테스트 — 외부 의존 없음**
 
-```java
-class ChatRoomTest {
+```typescript
+describe('ChatRoom', () => {
+  it('채팅방 이름 1자이면 예외', () => {
+    const creator = new User('alice');
+    expect(() => new ChatRoom('가', null, creator))
+      .toThrow('채팅방 이름은 2자 이상이어야 합니다');
+  });
 
-    @Test
-    void 채팅방_이름_1자이면_예외() {
-        User creator = new User("alice");
-        assertThrows(IllegalArgumentException.class,
-            () -> new ChatRoom("가", null, creator));
-    }
+  it('멤버 추가 성공', () => {
+    // given
+    const creator = new User('alice');
+    (creator as any).id = 1;
+    const other = new User('bob');
+    (other as any).id = 2;
+    const chatRoom = new ChatRoom('테스트방', null, creator);
 
-    @Test
-    void 멤버_추가_성공() throws Exception {
-        User creator = new User("alice");
-        setId(creator, 1L);
-        User other = new User("bob");
-        setId(other, 2L);
-        ChatRoom chatRoom = new ChatRoom("테스트방", null, creator);
+    // when
+    const result = chatRoom.addMember(other);
 
-        boolean result = chatRoom.addMember(other);
-
-        assertTrue(result);
-        assertEquals(2, chatRoom.getActiveMemberCount());
-    }
-}
+    // then
+    expect(result).toBe(true);
+    expect(chatRoom.getActiveMemberCount()).toBe(2);
+  });
+});
 ```
 
-**애플리케이션 서비스 테스트 — Mockito로 의존성 격리**
+**애플리케이션 서비스 테스트 — Jest mock으로 의존성 격리**
 
-```java
-@ExtendWith(MockitoExtension.class)
-class ChatRoomApplicationServiceTest {
+```typescript
+describe('ChatRoomApplicationService', () => {
+  let service: ChatRoomApplicationService;
+  let chatRoomRepository: jest.Mocked<IChatRoomRepository>;
+  let userRepository: jest.Mocked<IUserRepository>;
 
-    @Mock
-    private ChatRoomRepository chatRoomRepository;
-    @Mock
-    private UserRepository userRepository;
-    @Mock
-    private SimpMessagingTemplate messagingTemplate;
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        ChatRoomApplicationService,
+        { provide: 'IChatRoomRepository', useValue: { save: jest.fn(), findById: jest.fn() } },
+        { provide: 'IUserRepository', useValue: { findById: jest.fn() } },
+      ],
+    }).compile();
 
-    @InjectMocks
-    private ChatRoomApplicationService chatRoomApplicationService;
+    service = module.get(ChatRoomApplicationService);
+    chatRoomRepository = module.get('IChatRoomRepository');
+    userRepository = module.get('IUserRepository');
+  });
 
-    @Test
-    void createChatRoom_성공() {
-        // given
-        CreateChatRoomRequest request = new CreateChatRoomRequest("새방", 1L, null);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(creator));
-        when(chatRoomRepository.save(any())).thenReturn(chatRoom);
-        when(messageRepository.save(any())).thenReturn(systemMsg);
+  it('createChatRoom 성공', async () => {
+    // given
+    userRepository.findById.mockResolvedValue(creator);
+    chatRoomRepository.save.mockResolvedValue(chatRoom);
 
-        // when
-        ChatRoomResponse response = chatRoomApplicationService.createChatRoom(request);
+    // when
+    const response = await service.createChatRoom({ name: '새방', creatorId: 1 });
 
-        // then
-        assertNotNull(response);
-        verify(chatRoomRepository).save(any(ChatRoom.class));
-        verify(messageRepository).save(any(Message.class));
-    }
+    // then
+    expect(response).toBeDefined();
+    expect(chatRoomRepository.save).toHaveBeenCalled();
+  });
 
-    @Test
-    void createChatRoom_존재하지_않는_사용자_예외() {
-        // given
-        when(userRepository.findById(999L)).thenReturn(Optional.empty());
+  it('createChatRoom 존재하지 않는 사용자 예외', async () => {
+    // given
+    userRepository.findById.mockResolvedValue(null);
 
-        // when & then
-        assertThrows(IllegalArgumentException.class,
-            () -> chatRoomApplicationService.createChatRoom(
-                new CreateChatRoomRequest("방", 999L, null)));
-    }
-}
+    // when & then
+    await expect(service.createChatRoom({ name: '방', creatorId: 999 }))
+      .rejects.toThrow();
+  });
+});
 ```
 
 **작성 규칙:**
-- 테스트 메서드명은 **한국어**로 의도를 명확히 기술한다 (예: `채팅방_생성_성공`, `존재하지_않는_사용자_예외`)
+- `describe` 블록명은 클래스명, `it` 블록명은 **한국어**로 의도를 명확히 기술한다
 - 내부 구조는 `// given / // when / // then` 주석으로 구분한다
-- 클래스/메서드에 `public` 생략 (JUnit 5 특성)
-- ID 설정이 필요한 경우 Reflection 헬퍼(`setId(obj, id)`)를 사용한다
+- `@nestjs/testing`의 `Test.createTestingModule()`로 DI 컨테이너를 구성한다
+- ID 설정이 필요한 경우 `(entity as any).id = N`으로 설정한다
 
-**통합 테스트 태그 규칙:**
+**통합 테스트 파일 규칙:**
 
-```java
-@Tag("integration")   // ← MySQL 필요 시 반드시 표시
-@SpringBootTest
-class UserRepositoryIntegrationTest { ... }
+```typescript
+// *.e2e-spec.ts — MySQL 필요 시 e2e-spec 확장자 사용
+describe('UserRepository (integration)', () => {
+  // @nestjs/testing + 실제 DB 연결
+  ...
+});
 ```
 
 ---
@@ -333,21 +335,21 @@ describe('Login 컴포넌트', () => {
 ## 커버리지 보고서 확인 방법
 
 ```bash
-# 1. 테스트 실행 + 보고서 생성
-cd server && ./gradlew test jacocoTestReport
+# 1. 테스트 실행 + 커버리지 보고서 생성
+cd chat-server && npm test -- --coverage
 
 # 2. 보고서 열기
-#    server/build/reports/jacoco/test/html/index.html
-#    → 패키지별 라인/브랜치 커버리지 확인 가능
+#    chat-server/coverage/lcov-report/index.html
+#    → 디렉토리별 라인/브랜치 커버리지 확인 가능
 
-# 3. 최소 기준 검증 (현재: 전체 Line 15% 이상)
-cd server && ./gradlew jacocoTestCoverageVerification
+# 3. 최소 기준 검증 (jest.config.ts의 coverageThreshold)
+#    → 기준 미달 시 테스트 실패로 자동 차단
 ```
 
 **보고서 경로:**
 
 | 파일 | 용도 |
 |------|------|
-| `server/build/reports/jacoco/test/html/index.html` | 브라우저에서 직관적으로 확인 |
-| `server/build/reports/tests/test/index.html` | 테스트 통과/실패 결과 확인 |
-| `server/build/reports/jacoco/test/jacocoTestReport.xml` | CI/CD 파이프라인 연동 |
+| `chat-server/coverage/lcov-report/index.html` | 브라우저에서 직관적으로 확인 |
+| `chat-server/coverage/lcov.info` | CI/CD 파이프라인 연동 |
+| `api-server/coverage/lcov-report/index.html` | api-server 커버리지 확인 |
