@@ -66,7 +66,7 @@ import { WebSocketMessageGateway } from './presentation/gateway/websocket-messag
           MessageEntity,
           AttachmentEntity,
         ],
-        synchronize: false,
+        synchronize: config.get<string>('TYPEORM_SYNC', 'false') === 'true',
         logging: config.get<string>('NODE_ENV') !== 'production',
       }),
     }),
