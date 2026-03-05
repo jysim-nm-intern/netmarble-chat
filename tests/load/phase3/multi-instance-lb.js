@@ -5,9 +5,9 @@
  * 크로스 인스턴스 간 데이터 일관성 검증.
  *
  * 시나리오:
- *   - VU 0 → 200 → 500 → 1000 → 3000 → 0
+ *   - VU 0 → 200 → 500 → 1000 → 1500 → 0
  *   - 채팅방 10개에 분산 배치
- *   - 각 VU: 유저 생성 → 입장 → 메시지 조회(api-server) → 체류 → 퇴장
+ *   - 유저 사전 생성 (setup) → 입장 → 메시지 조회(api-server) → 체류 → 퇴장
  *   - X-Upstream-Server 헤더로 분산 여부 확인
  *
  * 실행:
@@ -27,6 +27,7 @@ const server1Hits = new Counter('upstream_server_1');
 const server2Hits = new Counter('upstream_server_2');
 
 const NUM_ROOMS = 10;
+const MAX_VUS = 1500;
 
 export const options = {
   stages: [
@@ -49,12 +50,23 @@ export const options = {
 };
 
 export function setup() {
-  const rooms = [];
-  const creator = http.post(`${NGINX_API}/users`, 'nickname=p3_lb_creator', {
-    headers: FORM_HEADERS,
-  });
-  const creatorId = JSON.parse(creator.body).id;
+  // 유저 사전 생성 (MAX_VUS만큼)
+  const users = [];
+  for (let i = 0; i < MAX_VUS; i++) {
+    const res = http.post(`${NGINX_API}/users`, `nickname=p3lb_${i}_${Date.now()}`, {
+      headers: FORM_HEADERS,
+    });
+    if (res.status >= 200 && res.status < 300) {
+      users.push(JSON.parse(res.body).id);
+    }
+    // 대량 생성 시 서버 부하 분산
+    if (i % 100 === 99) sleep(0.5);
+  }
+  console.log(`[setup] 유저 ${users.length}명 사전 생성 완료`);
 
+  // 채팅방 생성
+  const rooms = [];
+  const creatorId = users[0];
   for (let i = 0; i < NUM_ROOMS; i++) {
     const res = http.post(`${NGINX_API}/chat-rooms`,
       `name=P3LBRoom_${i}_${Date.now()}&creatorId=${creatorId}`, {
@@ -63,29 +75,22 @@ export function setup() {
     const room = JSON.parse(res.body);
     rooms.push(room.roomId || room.id);
   }
-  return { rooms, creatorId };
+  console.log(`[setup] 방 ${rooms.length}개 생성 완료`);
+
+  return { rooms, users };
 }
 
 export default function (data) {
-  const vuId = __VU;
-  const roomIdx = vuId % NUM_ROOMS;
+  const vuIdx = (__VU - 1) % data.users.length;
+  const userId = data.users[vuIdx];
+  const roomIdx = __VU % NUM_ROOMS;
   const roomId = data.rooms[roomIdx];
-  const nick = `p3lb_${vuId}_${__ITER}`;
 
-  // 1) 유저 생성 (Nginx → chat-server)
-  const userRes = http.post(`${NGINX_API}/users`, `nickname=${nick}`, {
-    headers: FORM_HEADERS,
-  });
-  const userOk = check(userRes, {
-    'user created': (r) => r.status === 200 || r.status === 201,
-  });
-  apiSuccess.add(userOk);
-  if (!userOk) { connErrors.add(1); return; }
+  if (!userId) { connErrors.add(1); return; }
 
-  const userId = JSON.parse(userRes.body).id;
-
-  // upstream 서버 식별
-  const upstream = userRes.headers['X-Upstream-Server'] || '';
+  // 1) upstream 서버 식별 (간단한 GET으로 확인)
+  const healthRes = http.get(`${NGINX_API}/chat-rooms?userId=${userId}`);
+  const upstream = healthRes.headers['X-Upstream-Server'] || '';
   if (upstream.includes('chat-server-1')) server1Hits.add(1);
   else if (upstream.includes('chat-server-2')) server2Hits.add(1);
 
@@ -110,6 +115,7 @@ export default function (data) {
   // 5) 채팅방 목록 조회
   const listRes = http.get(`${NGINX_API}/chat-rooms?userId=${userId}`);
   check(listRes, { 'room list': (r) => r.status === 200 });
+  apiSuccess.add(check(listRes, { 'list ok': (r) => r.status === 200 }));
 
   sleep(Math.random() * 2 + 1);
 

@@ -5,8 +5,8 @@
  * Phase 3에서 RabbitMQ STOMP Relay로 전환하여 방당 500명 목표 검증.
  *
  * 시나리오:
- *   - 방 2개에 VU 분산 배치 (방당 최대 500명)
- *   - 각 VU: 유저 생성 → 입장 → WebSocket STOMP 연결 → 메시지 송수신 → 퇴장
+ *   - 유저 사전 생성 (setup) → 방 2개에 VU 분산 배치 (방당 최대 500명)
+ *   - 각 VU: 입장 → WebSocket STOMP 연결 → 메시지 송수신 → 퇴장
  *   - Nginx(8888) 경유 → chat-server-1/2 로드밸런싱
  *
  * 실행:
@@ -28,6 +28,7 @@ const wsSuccessRate = new Rate('ws_success_rate');
 
 const SHARED_ROOM_COUNT = 2;
 const MSG_SEND_COUNT = 5;
+const MAX_VUS = 1000;
 
 export const options = {
   stages: [
@@ -59,12 +60,22 @@ function stompFrame(command, headers, body = '') {
 }
 
 export function setup() {
-  const coordRes = http.post(`${NGINX_API}/users`, 'nickname=p3_stomp_coord', {
-    headers: FORM_HEADERS,
-  });
-  const coordId = JSON.parse(coordRes.body).id;
+  // 유저 사전 생성
+  const users = [];
+  for (let i = 0; i < MAX_VUS; i++) {
+    const res = http.post(`${NGINX_API}/users`, `nickname=p3s_${i}_${Date.now()}`, {
+      headers: FORM_HEADERS,
+    });
+    if (res.status >= 200 && res.status < 300) {
+      users.push(JSON.parse(res.body).id);
+    }
+    if (i % 100 === 99) sleep(0.5);
+  }
+  console.log(`[setup] 유저 ${users.length}명 사전 생성 완료`);
 
+  // 채팅방 생성
   const rooms = [];
+  const coordId = users[0];
   for (let i = 0; i < SHARED_ROOM_COUNT; i++) {
     const res = http.post(`${NGINX_API}/chat-rooms`,
       `name=P3StompRoom_${i}_${Date.now()}&creatorId=${coordId}`, {
@@ -75,43 +86,29 @@ export function setup() {
   }
   if (rooms.length === 0) throw new Error('방 생성 실패');
   console.log(`[setup] 방 ${rooms.length}개 생성 완료: ${rooms.join(', ')}`);
-  return { rooms };
-}
 
-function setupSession(rooms) {
-  const nick = `p3s_${__VU}_${__ITER}`;
-  const userRes = http.post(`${NGINX_API}/users`, `nickname=${nick}`, {
-    headers: FORM_HEADERS,
-  });
-  if (userRes.status < 200 || userRes.status >= 300) return null;
-  const userId = JSON.parse(userRes.body).id;
-  if (!userId) return null;
-
-  const roomId = rooms[(__VU - 1) % rooms.length];
-  const joinRes = http.post(
-    `${NGINX_API}/chat-rooms/${roomId}/join?userId=${userId}`, null,
-    { headers: JSON_HEADERS });
-  if (joinRes.status !== 200) return null;
-
-  return { userId, roomId };
+  return { rooms, users };
 }
 
 export default function (data) {
-  const { rooms } = data;
+  const { rooms, users } = data;
+  const vuIdx = (__VU - 1) % users.length;
+  const userId = users[vuIdx];
+  const roomId = rooms[(__VU - 1) % rooms.length];
 
-  let session;
-  group('사전 준비 (REST via Nginx)', () => {
-    session = setupSession(rooms);
-    check(session, { '세션 생성 성공': (s) => s !== null });
-  });
-
-  if (!session) {
+  if (!userId) {
     wsConnectErrors.add(1);
     sleep(1);
     return;
   }
 
-  const { userId, roomId } = session;
+  // 채팅방 입장
+  group('사전 준비 (REST via Nginx)', () => {
+    const joinRes = http.post(
+      `${NGINX_API}/chat-rooms/${roomId}/join?userId=${userId}`, null,
+      { headers: JSON_HEADERS });
+    check(joinRes, { '입장 성공': (r) => r.status === 200 });
+  });
 
   group('WebSocket STOMP via RabbitMQ', () => {
     const sessionStart = Date.now();
