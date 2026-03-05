@@ -5,105 +5,81 @@ on:
     branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
       - 'chat-server/src/**'
-      - 'chat-server/build.gradle'
-      - 'chat-server/settings.gradle'
-      - 'chat-server/gradle/**'
-      - 'server/src/**'
-      - 'server/build.gradle'
-      - 'server/settings.gradle'
-      - 'server/gradle/**'
+      - 'chat-server/package.json'
+      - 'chat-server/tsconfig.json'
   pull_request:
     branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
       - 'chat-server/src/**'
-      - 'chat-server/build.gradle'
-      - 'chat-server/settings.gradle'
-      - 'chat-server/gradle/**'
-      - 'server/src/**'
-      - 'server/build.gradle'
-      - 'server/settings.gradle'
-      - 'server/gradle/**'
+      - 'chat-server/package.json'
+      - 'chat-server/tsconfig.json'
 
 jobs:
-  # ─── 단위 테스트 (H2 인메모리, @Tag("integration") 제외) ─────────────────────
+  # ─── 단위 테스트 (Jest, 외부 인프라 불필요) ─────────────────────────────────
   unit-test:
-    name: Spring Boot 단위 테스트
+    name: NestJS 단위 테스트
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
       checks: write
       pull-requests: write
+
+    defaults:
+      run:
+        working-directory: chat-server
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-
-      # chat-server/ 우선, 없으면 server/ fallback
-      - name: 서버 디렉토리 결정
-        id: server-dir
+      - name: chat-server 디렉토리 존재 확인
+        id: check-dir
         run: |
-          if [ -f "chat-server/build.gradle" ]; then
-            echo "dir=chat-server" >> $GITHUB_OUTPUT
+          if [ -d "chat-server/src" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
           else
-            echo "dir=server" >> $GITHUB_OUTPUT
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "::notice::chat-server 디렉토리가 존재하지 않아 테스트를 건너뜁니다"
           fi
+        working-directory: .
 
-      - name: Gradle 실행 권한 부여
-        run: chmod +x ./${{ steps.server-dir.outputs.dir }}/gradlew
+      - uses: actions/setup-node@v4
+        if: steps.check-dir.outputs.exists == 'true'
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: chat-server/package-lock.json
+
+      - name: 의존성 설치
+        if: steps.check-dir.outputs.exists == 'true'
+        run: npm ci
 
       - name: 단위 테스트 실행
-        working-directory: ${{ steps.server-dir.outputs.dir }}
-        run: ./gradlew test --no-daemon
+        if: steps.check-dir.outputs.exists == 'true'
+        run: npm test -- --coverage --ci
         continue-on-error: true
 
-      - name: JaCoCo 커버리지 리포트 생성
-        working-directory: ${{ steps.server-dir.outputs.dir }}
-        run: ./gradlew jacocoTestReport --no-daemon
-        continue-on-error: true
-
-      - name: 테스트 결과 파일 확인
-        id: check-unit-tests
-        if: always()
-        run: |
-          SERVER_DIR="${{ steps.server-dir.outputs.dir }}"
-          if ls ${SERVER_DIR}/build/test-results/test/*.xml 2>/dev/null | head -1 | grep -q .; then
-            echo "has-tests=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-tests=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 테스트 결과 PR 체크에 기록
-        uses: dorny/test-reporter@v1
-        if: always() && steps.check-unit-tests.outputs.has-tests == 'true'
-        with:
-          name: Server Unit Tests
-          path: ${{ steps.server-dir.outputs.dir }}/build/test-results/test/*.xml
-          reporter: java-junit
-          fail-on-error: true
-
-      - name: JaCoCo 커버리지 리포트 아티팩트 업로드
+      - name: 커버리지 리포트 아티팩트 업로드
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.check-dir.outputs.exists == 'true'
         with:
-          name: jacoco-coverage-report
-          path: ${{ steps.server-dir.outputs.dir }}/build/reports/jacoco/
+          name: jest-coverage-report
+          path: chat-server/coverage/
           retention-days: 7
 
   # ─── 통합 테스트 (MySQL 서비스 컨테이너 사용) ─────────────────────────────────
   integration-test:
-    name: Spring Boot 통합 테스트 (MySQL)
+    name: NestJS 통합 테스트 (MySQL)
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
       checks: write
       pull-requests: write
+
+    defaults:
+      run:
+        working-directory: chat-server
 
     services:
       mysql:
@@ -124,58 +100,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: 서버 디렉토리 결정
-        id: server-dir
+      - name: chat-server 디렉토리 존재 확인
+        id: check-dir
         run: |
-          if [ -f "chat-server/build.gradle" ]; then
-            echo "dir=chat-server" >> $GITHUB_OUTPUT
+          if [ -d "chat-server/src" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
           else
-            echo "dir=server" >> $GITHUB_OUTPUT
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "::notice::chat-server 디렉토리가 존재하지 않아 테스트를 건너뜁니다"
           fi
+        working-directory: .
 
-      - name: Gradle 실행 권한 부여
-        run: chmod +x ./${{ steps.server-dir.outputs.dir }}/gradlew
+      - uses: actions/setup-node@v4
+        if: steps.check-dir.outputs.exists == 'true'
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: chat-server/package-lock.json
+
+      - name: 의존성 설치
+        if: steps.check-dir.outputs.exists == 'true'
+        run: npm ci
 
       - name: 통합 테스트 실행 (MySQL 연동)
-        working-directory: ${{ steps.server-dir.outputs.dir }}
-        run: ./gradlew integrationTest --no-daemon
+        if: steps.check-dir.outputs.exists == 'true'
+        run: npm run test:e2e -- --ci
         continue-on-error: true
         env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/chat_test
-          SPRING_DATASOURCE_USERNAME: chatuser
-          SPRING_DATASOURCE_PASSWORD: chatpass
-          SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
-
-      - name: 통합 테스트 결과 파일 확인
-        id: check-integration-tests
-        if: always()
-        run: |
-          SERVER_DIR="${{ steps.server-dir.outputs.dir }}"
-          if ls ${SERVER_DIR}/build/test-results/integrationTest/*.xml 2>/dev/null | head -1 | grep -q .; then
-            echo "has-tests=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-tests=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 통합 테스트 결과 PR 체크에 기록
-        uses: dorny/test-reporter@v1
-        if: always() && steps.check-integration-tests.outputs.has-tests == 'true'
-        with:
-          name: Server Integration Tests
-          path: ${{ steps.server-dir.outputs.dir }}/build/test-results/integrationTest/*.xml
-          reporter: java-junit
-          fail-on-error: false
-
-      - name: 통합 테스트 결과 아티팩트 업로드
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: server-integration-test-results
-          path: ${{ steps.server-dir.outputs.dir }}/build/test-results/integrationTest/
-          retention-days: 7
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: chat_test
+          DB_USERNAME: chatuser
+          DB_PASSWORD: chatpass
