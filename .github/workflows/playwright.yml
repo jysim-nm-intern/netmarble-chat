@@ -23,6 +23,20 @@ jobs:
     timeout-minutes: 60
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
     - uses: actions/checkout@v4
 
@@ -46,7 +60,7 @@ jobs:
           client/package-lock.json
           chat-server/package-lock.json
 
-    # ── NestJS 백엔드 기동 (SQLite 인메모리) ──────────────────
+    # ── NestJS 백엔드 기동 (MySQL 서비스 컨테이너) ──────────────────
     - name: chat-server 의존성 설치
       if: steps.check-backend.outputs.exists == 'true'
       working-directory: chat-server
@@ -64,11 +78,12 @@ jobs:
       env:
         NODE_ENV: test
         PORT: 8080
-        DB_HOST: localhost
+        DB_HOST: 127.0.0.1
         DB_PORT: 3306
         DB_USERNAME: root
         DB_PASSWORD: root
         DB_NAME: test
+        TYPEORM_SYNC: 'true'
 
     - name: 백엔드 시작 대기 (최대 5분)
       if: steps.check-backend.outputs.exists == 'true'
