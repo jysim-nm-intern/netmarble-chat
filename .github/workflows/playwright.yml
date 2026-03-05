@@ -26,41 +26,40 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    # ── Java 설정 (백엔드 기동용) ──────────────────────────────────
-    - uses: actions/setup-java@v4
+    # ── Node.js 설정 ──────────────────────────────────────────
+    - uses: actions/setup-node@v4
       with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
+        node-version: lts/*
+        cache: npm
+        cache-dependency-path: |
+          client/package-lock.json
+          chat-server/package-lock.json
 
-    - name: 서버 디렉토리 결정
-      id: server-dir
-      run: |
-        if [ -f "chat-server/build.gradle" ]; then
-          echo "dir=chat-server" >> $GITHUB_OUTPUT
-        else
-          echo "dir=server" >> $GITHUB_OUTPUT
-        fi
+    # ── NestJS 백엔드 기동 (SQLite 인메모리) ──────────────────
+    - name: chat-server 의존성 설치
+      working-directory: chat-server
+      run: npm ci
 
-    - name: Gradle 실행 권한 부여
-      run: chmod +x ./${{ steps.server-dir.outputs.dir }}/gradlew
+    - name: chat-server 빌드
+      working-directory: chat-server
+      run: npm run build
 
-    # ── Spring Boot 백엔드 기동 (H2 인메모리) ──────────────────────
-    - name: Spring Boot 백엔드 시작 (백그라운드)
-      working-directory: ${{ steps.server-dir.outputs.dir }}
-      run: nohup ./gradlew bootRun --no-daemon > /tmp/backend.log 2>&1 &
+    - name: NestJS 백엔드 시작 (백그라운드)
+      working-directory: chat-server
+      run: nohup node dist/main.js > /tmp/backend.log 2>&1 &
       env:
-        SPRING_DATASOURCE_URL: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
-        SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
-        SPRING_DATASOURCE_USERNAME: sa
-        SPRING_DATASOURCE_PASSWORD: ""
-        SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.H2Dialect
-        SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+        NODE_ENV: test
+        PORT: 8080
+        DB_HOST: localhost
+        DB_PORT: 3306
+        DB_USERNAME: root
+        DB_PASSWORD: root
+        DB_NAME: test
 
     - name: 백엔드 시작 대기 (최대 5분)
       run: |
         for i in $(seq 1 150); do
-          if curl -s http://localhost:8080 > /dev/null 2>&1; then
+          if curl -s http://localhost:8080/api/health > /dev/null 2>&1; then
             echo "백엔드 시작 완료"
             exit 0
           fi
@@ -71,13 +70,7 @@ jobs:
         cat /tmp/backend.log
         exit 1
 
-    # ── Node / 프론트엔드 ──────────────────────────────────────────
-    - uses: actions/setup-node@v4
-      with:
-        node-version: lts/*
-        cache: npm
-        cache-dependency-path: client/package-lock.json
-
+    # ── 프론트엔드 ──────────────────────────────────────────
     - name: 프론트엔드 의존성 설치
       working-directory: client
       run: npm ci
@@ -87,7 +80,6 @@ jobs:
       run: npx playwright install --with-deps
 
     # ── E2E 테스트 실행 ────────────────────────────────────────────
-    # Phase 1 진행 중: ChatRoom 미구현 테스트는 실패 예상 → PR을 막지 않음
     - name: Playwright E2E 테스트 실행
       working-directory: client
       run: npx playwright test
