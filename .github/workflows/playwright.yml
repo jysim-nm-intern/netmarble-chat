@@ -8,6 +8,7 @@ on:
       - 'client/tests/**'
       - 'client/package*.json'
       - 'client/playwright.config.*'
+      - 'client/vite.config.*'
   pull_request:
     branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
@@ -16,6 +17,7 @@ on:
       - 'client/tests/**'
       - 'client/package*.json'
       - 'client/playwright.config.*'
+      - 'client/vite.config.*'
 jobs:
   test:
     timeout-minutes: 60
