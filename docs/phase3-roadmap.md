@@ -17,9 +17,8 @@ Phase 2에서 확인된 병목(SimpleBroker 200명/방 한계, 이미지 Base64 
 | 영역 | Phase 2 (현재) | Phase 3 (목표) |
 |------|---------------|----------------|
 | **메시지 브로커** | SimpleBroker | **RabbitMQ** (STOMP relay) |
-| **이미지 저장** | Base64 문자열 (DB) | **MinIO/S3** + CDN URL |
+| **이미지 저장** | Base64 문자열 (DB) | **로컬 파일 시스템** + Nginx static |
 | **서버 구성** | chat-server ×1 + api-server ×1 | chat-server **×N** + api-server ×1 |
-| **모니터링** | 로그 기반 | **Prometheus + Grafana** |
 | **로드밸런서** | 없음 (단일 포트) | **Nginx** 리버스 프록시 |
 
 ---
@@ -45,17 +44,17 @@ Phase 2에서 확인된 병목(SimpleBroker 200명/방 한계, 이미지 Base64 
 
 ---
 
-### Epic 2: 이미지 저장소 분리 (S3/MinIO)
+### Epic 2: 이미지 저장소 분리 (로컬 파일 시스템)
 
-**목적:** Base64 문자열 DB 저장 방식을 파일 스토리지(MinIO)로 전환하여 DB 부하 감소 및 이미지 전송 성능을 개선한다.
+**목적:** Base64 문자열 DB 저장 방식을 로컬 파일 시스템으로 전환하여 DB 부하 감소 및 이미지 전송 성능을 개선한다.
 
 | 태스크 | 설명 |
 |--------|------|
-| MinIO Docker 컨테이너 추가 | S3 호환 오브젝트 스토리지, `chat-images` 버킷 생성 |
-| `FileUploadService` 구현 | 이미지 업로드 → MinIO 저장 → URL 반환 |
-| `Attachment` 모델 변경 | `content: Base64` → `url: String` (MinIO 경로) |
+| `FileStorageService` 인터페이스 설계 | DDD 준수, 로컬 파일 시스템 구현체 |
+| 이미지 업로드 REST API | Multipart 업로드 → 로컬 저장 → URL 반환 |
+| Nginx static 서빙 | `location /uploads/` 정적 파일 서빙 |
 | 프론트엔드 이미지 로딩 | `<img src={attachment.url}>` 직접 로딩 (Base64 디코딩 제거) |
-| 마이그레이션 스크립트 | 기존 Base64 데이터 → MinIO 파일 변환 (일회성) |
+| Docker shared volume | 다중 인스턴스 간 파일 공유 |
 
 **완료 기준:**
 - 이미지 업로드/조회 시 Base64 인코딩/디코딩 제거
@@ -83,37 +82,21 @@ Phase 2에서 확인된 병목(SimpleBroker 200명/방 한계, 이미지 Base64 
 
 ---
 
-### Epic 4: 모니터링 및 운영 안정성
-
-**목적:** 프로덕션 수준의 모니터링, 알림, 로깅 체계를 구축한다.
-
-| 태스크 | 설명 |
-|--------|------|
-| Spring Actuator + Micrometer | 메트릭 수집 (JVM, HTTP, STOMP, MongoDB, Redis) |
-| Prometheus 컨테이너 추가 | 메트릭 스크래핑, 알림 규칙 설정 |
-| Grafana 대시보드 | 실시간 동시 접속, 메시지 처리량, 응답 시간 시각화 |
-| 구조화 로깅 (JSON) | ELK 연동 대비 JSON 포맷 로깅 |
-| 알림 규칙 | STOMP 오류율 > 1%, HTTP p(95) > 2s 시 알림 |
-
-**완료 기준:**
-- Grafana 대시보드에서 핵심 메트릭 실시간 모니터링 가능
-- 알림 규칙 동작 확인
-
----
-
 ## 우선순위 및 일정 제안
 
 ```
 Phase 3 Step 1 (병렬):
-  ├── Epic 1: 외부 브로커 (RabbitMQ)     ← 핵심 병목 해소
-  └── Epic 2: 이미지 저장소 (MinIO)       ← DB 부하 감소
+  ├── Epic 1: 외부 브로커 (RabbitMQ)     ← 핵심 병목 해소      ✅ 완료
+  └── Epic 2: 이미지 저장소 (로컬)       ← DB 부하 감소        ✅ 완료
 
 Phase 3 Step 2:
-  └── Epic 3: 수평 확장 (Nginx + 복제)   ← Epic 1 의존
+  └── Epic 3: 수평 확장 (Nginx + 복제)   ← Epic 1 의존         ✅ 완료
 
-Phase 3 Step 3:
-  └── Epic 4: 모니터링 (Prometheus)       ← 최종 안정화
+Phase 3 마무리:
+  └── 부하 테스트 (#54) → 회고 (#55)
 ```
+
+> **참고:** 모니터링 체계 구축 (Prometheus + Grafana)은 Phase 3 범위에서 분리하여 별도 이슈(#53)로 진행합니다.
 
 ---
 
@@ -125,8 +108,7 @@ Phase 3 Step 3:
 | 메시지 DB | MySQL | MongoDB | MongoDB |
 | 브로커 | SimpleBroker | SimpleBroker | **RabbitMQ** |
 | 인증 | HttpSession | JWT | JWT |
-| 이미지 | Base64 (DB) | Base64 (DB) | **MinIO/S3** |
-| 모니터링 | 없음 | 로그 | **Prometheus+Grafana** |
+| 이미지 | Base64 (DB) | Base64 (DB) | **로컬 파일 시스템** |
 | 동시 접속 | ~400명 | ~1,000명 | **~3,000명+** |
 | 방당 한계 | ~200명 | ~200명 | **~500명+** |
 
