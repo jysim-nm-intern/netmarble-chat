@@ -167,10 +167,12 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker,scale
       INSTANCE_ID: chat-server-1
+      JAVA_OPTS: "-Xms512m -Xmx2g"
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: root
       MYSQL_PASSWORD: root
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 50
       MONGODB_URI: mongodb://mongodb:27017/netmarble_chat
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -206,10 +208,12 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker,scale
       INSTANCE_ID: chat-server-2
+      JAVA_OPTS: "-Xms512m -Xmx2g"
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: root
       MYSQL_PASSWORD: root
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 50
       MONGODB_URI: mongodb://mongodb:27017/netmarble_chat
       REDIS_HOST: redis
       REDIS_PORT: 6379
