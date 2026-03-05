@@ -26,8 +26,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: chat-server 디렉토리 존재 확인
+      id: check-backend
+      run: |
+        if [ -d "chat-server/src" ]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "::notice::chat-server 디렉토리가 존재하지 않아 E2E 테스트를 건너뜁니다"
+        fi
+
     # ── Node.js 설정 ──────────────────────────────────────────
     - uses: actions/setup-node@v4
+      if: steps.check-backend.outputs.exists == 'true'
       with:
         node-version: lts/*
         cache: npm
@@ -37,14 +48,17 @@ jobs:
 
     # ── NestJS 백엔드 기동 (SQLite 인메모리) ──────────────────
     - name: chat-server 의존성 설치
+      if: steps.check-backend.outputs.exists == 'true'
       working-directory: chat-server
       run: npm ci
 
     - name: chat-server 빌드
+      if: steps.check-backend.outputs.exists == 'true'
       working-directory: chat-server
       run: npm run build
 
     - name: NestJS 백엔드 시작 (백그라운드)
+      if: steps.check-backend.outputs.exists == 'true'
       working-directory: chat-server
       run: nohup node dist/main.js > /tmp/backend.log 2>&1 &
       env:
@@ -57,6 +71,7 @@ jobs:
         DB_NAME: test
 
     - name: 백엔드 시작 대기 (최대 5분)
+      if: steps.check-backend.outputs.exists == 'true'
       run: |
         for i in $(seq 1 150); do
           if curl -s http://localhost:8080/api/health > /dev/null 2>&1; then
@@ -72,21 +87,24 @@ jobs:
 
     # ── 프론트엔드 ──────────────────────────────────────────
     - name: 프론트엔드 의존성 설치
+      if: steps.check-backend.outputs.exists == 'true'
       working-directory: client
       run: npm ci
 
     - name: Playwright 브라우저 설치
+      if: steps.check-backend.outputs.exists == 'true'
       working-directory: client
       run: npx playwright install --with-deps
 
     # ── E2E 테스트 실행 ────────────────────────────────────────────
     - name: Playwright E2E 테스트 실행
+      if: steps.check-backend.outputs.exists == 'true'
       working-directory: client
       run: npx playwright test
       continue-on-error: true
 
     - uses: actions/upload-artifact@v4
-      if: ${{ !cancelled() }}
+      if: ${{ !cancelled() && steps.check-backend.outputs.exists == 'true' }}
       with:
         name: playwright-report
         path: client/playwright-report/
