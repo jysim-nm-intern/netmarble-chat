@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, Like } from 'typeorm';
+import { Repository, MoreThan, Like, Not } from 'typeorm';
 import { Message, MessageType } from '../../../domain/model/message.js';
 import { MessageRepository } from '../../../domain/repository/message.repository.js';
 import { MessageEntity } from '../entity/message.entity.js';
@@ -79,6 +79,34 @@ export class TypeormMessageRepository extends MessageRepository {
       order: { sentAt: 'DESC' },
     });
     return entity ? this.toDomain(entity) : null;
+  }
+
+  async countByChatRoomIdAndIdGreaterThanAndSenderIdNot(
+    chatRoomId: number,
+    afterMessageId: number,
+    excludeSenderId: number,
+  ): Promise<number> {
+    return this.repo.count({
+      where: {
+        chatRoomId,
+        deleted: false,
+        id: MoreThan(afterMessageId),
+        senderId: Not(excludeSenderId),
+      },
+    });
+  }
+
+  async countByChatRoomIdAndSenderIdNot(
+    chatRoomId: number,
+    excludeSenderId: number,
+  ): Promise<number> {
+    return this.repo.count({
+      where: {
+        chatRoomId,
+        deleted: false,
+        senderId: Not(excludeSenderId),
+      },
+    });
   }
 
   async delete(message: Message): Promise<void> {

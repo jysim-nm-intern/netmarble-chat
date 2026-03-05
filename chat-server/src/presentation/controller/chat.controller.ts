@@ -62,7 +62,7 @@ export class ChatController {
       request.isOnline,
     );
 
-    if (!request.isOnline && request.logId) {
+    if (!request.isOnline && request.logId !== undefined) {
       await this.readStatusService.markAsRead(userResponse.id, request.chatRoomId);
     }
   }

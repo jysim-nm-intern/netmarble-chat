@@ -41,6 +41,7 @@ export class WebSocketMessageGateway implements OnModuleInit {
       request.content = data.content;
       request.messageType = data.type || data.messageType;
       request.fileName = data.fileName;
+      request.convertMessageType();
 
       const response = await this.messageService.sendMessage(request);
 
@@ -65,6 +66,7 @@ export class WebSocketMessageGateway implements OnModuleInit {
       request.senderId = data.senderId;
       request.content = data.content;
       request.messageType = data.type || data.messageType || 'SYSTEM';
+      request.convertMessageType();
 
       const response = await this.messageService.sendMessage(request);
 
