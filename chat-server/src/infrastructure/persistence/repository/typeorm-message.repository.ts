@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThanOrEqual, Like } from 'typeorm';
+import { Repository, MoreThan, Like } from 'typeorm';
 import { Message, MessageType } from '../../../domain/model/message.js';
 import { MessageRepository } from '../../../domain/repository/message.repository.js';
 import { MessageEntity } from '../entity/message.entity.js';
@@ -66,7 +66,7 @@ export class TypeormMessageRepository extends MessageRepository {
       where: {
         chatRoomId,
         deleted: false,
-        sentAt: MoreThanOrEqual(since),
+        sentAt: MoreThan(since),
       },
       order: { sentAt: 'ASC' },
     });

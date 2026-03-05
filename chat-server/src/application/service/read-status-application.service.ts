@@ -4,10 +4,6 @@ import {
   UserRepository,
 } from '../../domain/repository/user.repository.js';
 import {
-  CHAT_ROOM_REPOSITORY,
-  ChatRoomRepository,
-} from '../../domain/repository/chat-room.repository.js';
-import {
   MESSAGE_REPOSITORY,
   MessageRepository,
 } from '../../domain/repository/message.repository.js';
@@ -28,8 +24,6 @@ export class ReadStatusApplicationService {
   constructor(
     @Inject(MESSAGE_REPOSITORY)
     private readonly messageRepository: MessageRepository,
-    @Inject(CHAT_ROOM_REPOSITORY)
-    private readonly chatRoomRepository: ChatRoomRepository,
     @Inject(CHAT_ROOM_MEMBER_REPOSITORY)
     private readonly chatRoomMemberRepository: ChatRoomMemberRepository,
     @Inject(USER_REPOSITORY)
@@ -104,18 +98,15 @@ export class ReadStatusApplicationService {
   async getAllUnreadCounts(
     userId: number,
   ): Promise<Map<number, number>> {
-    const activeChatRooms = await this.chatRoomRepository.findAllActive();
+    const members =
+      await this.chatRoomMemberRepository.findActiveByUserId(userId);
     const result = new Map<number, number>();
 
-    for (const room of activeChatRooms) {
-      const member =
-        await this.chatRoomMemberRepository.findActiveByChatRoomIdAndUserId(
-          room.id!,
-          userId,
-        );
-      if (member) {
-        result.set(room.id!, await this.getUnreadCount(userId, room.id!));
-      }
+    for (const member of members) {
+      result.set(
+        member.chatRoomId,
+        await this.getUnreadCount(userId, member.chatRoomId),
+      );
     }
     return result;
   }

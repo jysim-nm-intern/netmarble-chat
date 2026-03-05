@@ -10,14 +10,10 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { Inject } from '@nestjs/common';
 import { MessageApplicationService } from '../../application/service/message-application.service.js';
 import { ReadStatusApplicationService } from '../../application/service/read-status-application.service.js';
 import { ChatRoomApplicationService } from '../../application/service/chat-room-application.service.js';
-import {
-  USER_REPOSITORY,
-  UserRepository,
-} from '../../domain/repository/user.repository.js';
+import { UserApplicationService } from '../../application/service/user-application.service.js';
 
 @Controller('api/chat')
 export class ChatController {
@@ -27,8 +23,7 @@ export class ChatController {
     private readonly messageService: MessageApplicationService,
     private readonly readStatusService: ReadStatusApplicationService,
     private readonly chatRoomService: ChatRoomApplicationService,
-    @Inject(USER_REPOSITORY)
-    private readonly userRepository: UserRepository,
+    private readonly userApplicationService: UserApplicationService,
   ) {}
 
   @Get('unread-count/:chatRoomId')
@@ -41,8 +36,8 @@ export class ChatController {
     );
     const mapping: Record<string, number> = {};
     for (const msg of messages) {
-      if (msg.unreadCount && msg.unreadCount > 0 && msg.id) {
-        mapping[String(msg.unreadCount)] = msg.id;
+      if (msg.unreadCount !== undefined && msg.unreadCount > 0 && msg.id) {
+        mapping[String(msg.id)] = msg.unreadCount;
       }
     }
     return mapping;
@@ -59,17 +54,16 @@ export class ChatController {
       logId?: number;
     },
   ): Promise<void> {
-    const user = await this.userRepository.findByNickname(request.nickname);
-    if (!user) throw new Error('사용자를 찾을 수 없습니다: ' + request.nickname);
+    const userResponse = await this.userApplicationService.getUserByNickname(request.nickname);
 
     await this.chatRoomService.updateMemberActiveStatus(
       request.chatRoomId,
-      user.id!,
+      userResponse.id,
       request.isOnline,
     );
 
     if (!request.isOnline && request.logId) {
-      await this.readStatusService.markAsRead(user.id!, request.chatRoomId);
+      await this.readStatusService.markAsRead(userResponse.id, request.chatRoomId);
     }
   }
 
@@ -78,9 +72,8 @@ export class ChatController {
   async updateReadStatus(
     @Body() request: { chatRoomId: number; nickname: string },
   ): Promise<void> {
-    const user = await this.userRepository.findByNickname(request.nickname);
-    if (!user) throw new Error('사용자를 찾을 수 없습니다: ' + request.nickname);
-    await this.readStatusService.markAsRead(user.id!, request.chatRoomId);
+    const userResponse = await this.userApplicationService.getUserByNickname(request.nickname);
+    await this.readStatusService.markAsRead(userResponse.id, request.chatRoomId);
   }
 
   @Get('chat-rooms/:chatRoomId/messages/search')
