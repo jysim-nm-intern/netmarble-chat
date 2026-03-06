@@ -32,23 +32,41 @@
 ### 메시징 브로커 교체 가능성
 
 ```
-현재 구현: Spring SimpleBroker (단일 서버)
-향후 전환: Apache Kafka 또는 RabbitMQ (다중 서버)
-교체 방법: MessageSender 인터페이스의 구현체만 교체 (도메인 코드 수정 없음)
+현재 구현: Spring SimpleBroker (단일 서버, 방당 ~200명 한계)
+Phase 3 전환 예정: RabbitMQ STOMP Relay (다중 서버, 방당 ~500명 목표)
+교체 방법: WebSocketConfig의 SimpleBroker → StompBrokerRelay 전환 (도메인 코드 수정 없음)
 ```
 
-### 데이터베이스 교체 가능성
+### 데이터베이스 구성 (Phase 2 현행)
 
 ```
-현재 구현: MySQL (JPA/Hibernate)
-향후 전환: MongoDB (대용량 메시지 저장)
-교체 방법: Repository 인터페이스의 구현체만 교체 (도메인 코드 수정 없음)
+메시지 저장: MongoDB (cursor-based 페이징, 비정규화, P99 7ms)
+  - chat-server: 비동기 쓰기 (@Async)
+  - api-server: 읽기 전용 (cursor-based 조회)
+유저/채팅방: MySQL (JPA, JOIN FETCH 최적화)
+읽음 상태: Redis (원자적 카운트, Lua Script)
+인증: JWT (Stateless) + Redis 블랙리스트
 ```
+
+### 2서버 분리 아키텍처 (Phase 2 현행)
+
+| 서버 | 역할 | DB |
+|------|------|----|
+| chat-server (8080) | STOMP/WebSocket + 유저/채팅방 REST | MySQL, MongoDB(쓰기), Redis |
+| api-server (8081) | 메시지 이력 REST 조회 | MongoDB(읽기) |
 
 ### 다중 클라이언트 지원
 
 - 포트 3000, 3001 등 여러 포트에서 동시에 클라이언트를 실행하여 다중 사용자 환경을 시뮬레이션한다.
 - CORS 설정으로 로컬 멀티포트 접근을 허용한다.
+
+### 부하 테스트 실측치 (Phase 2)
+
+| 기준 | 안전 인원 | 근거 |
+|------|-----------|------|
+| 방 1개 | ~200명 | STOMP 오류 0건, WS 100% 성공 |
+| 전체 서비스 (실측) | 1,000명 | 10방 × 100명, 실패율 0% |
+| 메시지 조회 P99 | 7.04ms | 목표 200ms 대비 28배 여유 |
 
 ---
 

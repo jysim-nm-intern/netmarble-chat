@@ -1,0 +1,35 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.netmarble'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = '17'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+
+    // Jakarta Validation (요청 DTO 검증 어노테이션)
+    implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Phase 2: common-domain은 순수 Java 모듈 (Spring/JPA 의존 없음)
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

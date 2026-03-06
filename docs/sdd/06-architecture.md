@@ -217,3 +217,128 @@ interface MessageSender {
     void send(String destination, Object payload);
 }
 ```
+
+---
+
+## Phase 2 — 2서버 분리 아키텍처 (SPEC-ARCH-002)
+
+### 서버 분리 원칙
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                      2서버 하이브리드 아키텍처                        │
+│                                                                    │
+│   chat-server (포트 8080)                                          │
+│   ├── STOMP/WebSocket: 실시간 메시지 송수신, 읽음 처리, 입퇴장 이벤트  │
+│   ├── MySQL: 유저, 채팅방, 멤버십 (관계형 데이터)                     │
+│   ├── MongoDB: 메시지 비동기 쓰기 (@Async, 실패 시 MySQL만 유지)      │
+│   └── Redis: 읽음 상태 원자적 카운트                                 │
+│                                                                    │
+│   api-server (포트 8081)                                           │
+│   ├── REST API: 메시지 이력 조회, cursor-based 페이징                │
+│   └── MongoDB: 메시지 읽기 전용                                     │
+│                                                                    │
+│   ❌ 금지: api-server에서 WebSocket/STOMP 사용                      │
+│   ❌ 금지: chat-server에서 메시지 이력 REST API 제공                  │
+│   ❌ 금지: api-server ↔ chat-server 간 직접 의존                     │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### 프로젝트 구조
+
+```
+netmarble-chat/                   ← 루트 프로젝트
+│
+├── chat-server/                  ← 실시간 채팅 서버 (독립 Gradle 프로젝트)
+│   ├── build.gradle
+│   ├── settings.gradle
+│   ├── Dockerfile
+│   └── src/main/java/com/netmarble/chat/
+│       ├── ChatServerApplication.java
+│       ├── presentation/
+│       │   ├── controller/
+│       │   │   ├── UserController.java
+│       │   │   ├── ChatRoomController.java
+│       │   │   ├── ChatController.java        ← 메시지 검색 REST
+│       │   │   ├── WebSocketMessageController.java ← STOMP + MongoDB 비동기 쓰기
+│       │   │   ├── ReadStatusController.java
+│       │   │   └── HealthController.java
+│       │   └── exception/
+│       ├── application/
+│       │   ├── service/     ← ApplicationService (트랜잭션 경계)
+│       │   └── dto/         ← Request/Response DTO
+│       ├── domain/
+│       │   ├── model/       ← JPA Entity (User, ChatRoom, Message 등)
+│       │   ├── repository/  ← Interface
+│       │   └── service/     ← DomainService
+│       └── infrastructure/
+│           ├── persistence/  ← JPA Repository 구현
+│           ├── mongo/        ← ChatMessageDocument, ChatMessageMongoRepository
+│           ├── redis/        ← ReadStatusRedisService
+│           ├── security/     ← JWT (JwtTokenProvider, SecurityConfig)
+│           └── config/       ← WebSocketConfig, AsyncConfig, RedisConfig
+│
+├── api-server/                   ← REST API 서버 (독립 Gradle 프로젝트)
+│   ├── build.gradle
+│   ├── settings.gradle
+│   ├── Dockerfile
+│   └── src/main/java/com/netmarble/chat/
+│       ├── ApiServerApplication.java
+│       ├── presentation/
+│       │   └── controller/
+│       │       ├── MessageHistoryController.java ← cursor-based 메시지 조회
+│       │       └── HealthController.java
+│       ├── application/
+│       │   ├── service/mongo/
+│       │   │   └── MessageQueryService.java  ← MongoDB 조회 + 커서 페이징
+│       │   └── dto/
+│       │       ├── MessageResponse.java      ← domain 의존 없는 순수 DTO
+│       │       └── cursor/
+│       │           └── CursorPageResponse.java
+│       └── infrastructure/
+│           └── mongo/
+│               ├── document/    ← MessageDocument, ReadStatusDocument
+│               └── repository/  ← MessageMongoRepository, ReadStatusMongoRepository
+│
+├── client/                       ← 프론트엔드 (Vite + React)
+└── docker-compose.yml            ← 전체 서비스 오케스트레이션
+```
+
+### 데이터베이스 역할 분담
+
+| DB | chat-server (쓰기) | api-server (읽기) | 저장 대상 |
+|----|-------------------|-------------------|-----------|
+| **MySQL** | ✅ JPA CRUD | ❌ 미사용 | 유저, 채팅방, 멤버십, 메시지(레거시) |
+| **MongoDB** | ✅ 비동기 쓰기 (@Async) | ✅ 조회 전용 | 메시지 (비정규화, cursor-based) |
+| **Redis** | ✅ 읽음 상태 원자적 처리 | ❌ 미사용 | 읽음 카운트, JWT 블랙리스트 |
+
+### Docker Compose 서비스 구성
+
+| 컨테이너 | 포트 | 역할 |
+|-----------|------|------|
+| `server` (chat-server) | 8080 | STOMP/WebSocket + MySQL + MongoDB 쓰기 + Redis |
+| `api-server` | 8081 | REST API + MongoDB 읽기 |
+| `mysql` | 3307→3306 | 유저, 채팅방, 멤버십 |
+| `mongodb` | 27017 | 메시지 저장 (chat-server 쓰기 / api-server 읽기) |
+| `redis` | 6379 | 읽음 상태, JWT 블랙리스트 |
+| `client-3000/3001` | 3000, 3001 | 프론트엔드 |
+
+### 계층 간 의존성 규칙
+
+| 규칙 | 설명 |
+|------|------|
+| `domain` → `infrastructure` 금지 | 도메인이 JPA/MongoDB/Redis에 직접 의존 불가 |
+| `controller` → `repository` 직접 호출 금지 | Controller는 Service만 호출 |
+| `api-server` ↔ `chat-server` 직접 의존 금지 | MongoDB `messages` 컬렉션을 통해서만 데이터 공유 |
+| Entity 직접 반환 금지 | Controller 응답 시 반드시 DTO로 변환 |
+
+### 기술 스택 (Phase 2)
+
+| 구분 | 기술 |
+|------|------|
+| 메시지 저장소 | MongoDB (cursor-based paging, 비정규화) |
+| 채팅방/유저 저장소 | MySQL (JPA, JOIN FETCH) |
+| 읽음 상태 | Redis (원자적 카운트) |
+| 인증 | JWT (HS256, AccessToken 15분, RefreshToken 7일) |
+| 캐시/블랙리스트 | Redis |
+| 비동기 처리 | Spring @Async (MongoDB 쓰기) |

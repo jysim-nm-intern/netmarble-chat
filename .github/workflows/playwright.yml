@@ -31,13 +31,21 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
+    - name: 서버 디렉토리 결정
+      id: server-dir
+      run: |
+        if [ -f "chat-server/build.gradle" ]; then
+          echo "dir=chat-server" >> $GITHUB_OUTPUT
+        else
+          echo "dir=server" >> $GITHUB_OUTPUT
+        fi
+
     - name: Gradle 실행 권한 부여
-      working-directory: server
-      run: chmod +x ./gradlew
+      run: chmod +x ./${{ steps.server-dir.outputs.dir }}/gradlew
 
     # ── Spring Boot 백엔드 기동 (H2 인메모리) ──────────────────────
     - name: Spring Boot 백엔드 시작 (백그라운드)
-      working-directory: server
+      working-directory: ${{ steps.server-dir.outputs.dir }}
       run: nohup ./gradlew bootRun --no-daemon > /tmp/backend.log 2>&1 &
       env:
         SPRING_DATASOURCE_URL: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL

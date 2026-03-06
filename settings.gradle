@@ -1,0 +1,3 @@
+rootProject.name = 'netmarble-chat'
+
+include 'common-domain', 'api-server', 'chat-server'

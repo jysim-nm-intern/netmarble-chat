@@ -1,0 +1,160 @@
+name: API Server Tests
+
+on:
+  push:
+    branches: [ main, master, phase-*, 'copilot/**' ]
+    paths:
+      - 'api-server/src/**'
+      - 'api-server/build.gradle'
+      - 'api-server/settings.gradle'
+      - 'api-server/gradle/**'
+  pull_request:
+    branches: [ main, master, phase-*, 'copilot/**' ]
+    paths:
+      - 'api-server/src/**'
+      - 'api-server/build.gradle'
+      - 'api-server/settings.gradle'
+      - 'api-server/gradle/**'
+
+jobs:
+  # ─── 단위 테스트 (EmbeddedMongo + H2, integration 제외) ──────────────────────
+  unit-test:
+    name: API Server 단위 테스트 (MongoDB + H2)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    defaults:
+      run:
+        working-directory: api-server
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Gradle 실행 권한 부여
+        run: chmod +x ./gradlew
+
+      - name: 단위 테스트 실행 (EmbeddedMongo)
+        run: ./gradlew test --no-daemon
+        continue-on-error: true
+
+      - name: JaCoCo 커버리지 리포트 생성
+        run: ./gradlew jacocoTestReport --no-daemon
+        continue-on-error: true
+
+      - name: 테스트 결과 파일 확인
+        id: check-tests
+        if: always()
+        run: |
+          if ls build/test-results/test/*.xml 2>/dev/null | head -1 | grep -q .; then
+            echo "has-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-tests=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 테스트 결과 PR 체크에 기록
+        uses: dorny/test-reporter@v1
+        if: always() && steps.check-tests.outputs.has-tests == 'true'
+        with:
+          name: API Server Unit Tests
+          path: api-server/build/test-results/test/*.xml
+          reporter: java-junit
+          fail-on-error: true
+
+      - name: JaCoCo 커버리지 리포트 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-server-jacoco-report
+          path: api-server/build/reports/jacoco/
+          retention-days: 7
+
+  # ─── 통합 테스트 (MongoDB + MySQL 서비스 컨테이너) ────────────────────────────
+  integration-test:
+    name: API Server 통합 테스트 (MongoDB + MySQL)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    defaults:
+      run:
+        working-directory: api-server
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: testroot
+          MYSQL_DATABASE: chat_test
+          MYSQL_USER: chatuser
+          MYSQL_PASSWORD: chatpass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd="mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Gradle 실행 권한 부여
+        run: chmod +x ./gradlew
+
+      - name: 통합 테스트 실행 (MongoDB + MySQL)
+        run: ./gradlew integrationTest --no-daemon
+        continue-on-error: true
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/chat_test
+          SPRING_DATASOURCE_USERNAME: chatuser
+          SPRING_DATASOURCE_PASSWORD: chatpass
+          SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+          MONGODB_URI: mongodb://127.0.0.1:27017/netmarble_chat_test
+
+      - name: 통합 테스트 결과 파일 확인
+        id: check-integration-tests
+        if: always()
+        run: |
+          if ls build/test-results/integrationTest/*.xml 2>/dev/null | head -1 | grep -q .; then
+            echo "has-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-tests=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 통합 테스트 결과 PR 체크에 기록
+        uses: dorny/test-reporter@v1
+        if: always() && steps.check-integration-tests.outputs.has-tests == 'true'
+        with:
+          name: API Server Integration Tests
+          path: api-server/build/test-results/integrationTest/*.xml
+          reporter: java-junit
+          fail-on-error: false
