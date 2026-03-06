@@ -1334,6 +1334,126 @@ test('검색 결과 이동 시 메시지 버블에 바운스 애니메이션 적
 });
 
 // ─────────────────────────────────────────────
+// E2E-ROOM-LIST-001 | SPEC-ROOM-001
+// AC-ROOM-001-9: 채팅방 목록에서 마지막 메시지가 실시간 갱신
+// ─────────────────────────────────────────────
+test('채팅방 목록에서 다른 사용자의 메시지 전송 시 마지막 메시지가 실시간으로 갱신됨', async ({ browser, request }) => {
+  const senderNickname = `sender_${Date.now()}`;
+  const receiverNickname = `receiver_${Date.now()}`;
+  const roomName = `list_msg_${Date.now()}`;
+  const testMessage = `realtime_msg_${Date.now()}`;
+
+  // API로 사용자, 채팅방 생성 및 참가
+  const sender = await createUser(request, senderNickname);
+  const receiver = await createUser(request, receiverNickname);
+  const chatRoom = await createChatRoom(request, sender.id, roomName);
+  await joinChatRoom(request, chatRoom.id, receiver.id);
+
+  const senderContext = await browser.newContext();
+  const receiverContext = await browser.newContext();
+  const senderPage = await senderContext.newPage();
+  const receiverPage = await receiverContext.newPage();
+
+  // 수신자: 로그인 → 채팅방 목록에서 대기 (방에 입장하지 않음)
+  // WebSocket 구독 완료를 console 로그로 감지
+  const subPromise = receiverPage.waitForEvent('console', {
+    predicate: msg => msg.text().includes(`Subscribed to: /topic/chatroom.${chatRoom.id}`),
+    timeout: 15000,
+  });
+  await receiverPage.goto('/login');
+  await receiverPage.getByLabel('닉네임').fill(receiver.nickname);
+  await receiverPage.getByRole('button', { name: '채팅 시작' }).click();
+  await receiverPage.waitForURL('**/');
+  await expect(receiverPage.getByText(roomName).first()).toBeVisible({ timeout: 10000 });
+  await subPromise;
+
+  // 발신자: 로그인 → 채팅방 입장 → 메시지 전송
+  await senderPage.goto('/login');
+  await senderPage.getByLabel('닉네임').fill(sender.nickname);
+  await senderPage.getByRole('button', { name: '채팅 시작' }).click();
+  await senderPage.waitForURL('**/');
+  await senderPage.getByText(roomName).click();
+  await waitForConnected(senderPage);
+
+  await senderPage.getByPlaceholder(/메시지를 입력하세요/).fill(testMessage);
+  await senderPage.getByRole('button', { name: '전송' }).click();
+  await expect(senderPage.getByText(testMessage)).toBeVisible();
+
+  // 수신자: 채팅방 목록에서 마지막 메시지가 실시간 갱신 확인 (AC-ROOM-001-9)
+  await expect(receiverPage.getByText(testMessage)).toBeVisible({ timeout: 10000 });
+
+  // 마지막 메시지 시간도 표시되어야 함
+  const roomRow = receiverPage.locator('.cursor-pointer').filter({ hasText: roomName });
+  await expect(roomRow.locator('text=/오전|오후/')).toBeVisible();
+
+  await senderContext.close();
+  await receiverContext.close();
+});
+
+// ─────────────────────────────────────────────
+// E2E-ROOM-LIST-002 | SPEC-ROOM-001
+// AC-ROOM-001-10: 채팅방 목록에서 읽지 않은 메시지 수 실시간 증가
+// ─────────────────────────────────────────────
+test('채팅방 목록에서 다른 사용자의 메시지 수신 시 unreadCount 배지가 실시간 증가', async ({ browser, request }) => {
+  const senderNickname = `sender_${Date.now()}`;
+  const receiverNickname = `receiver_${Date.now()}`;
+  const roomName = `list_unread_${Date.now()}`;
+
+  // API로 사용자, 채팅방 생성 및 참가
+  const sender = await createUser(request, senderNickname);
+  const receiver = await createUser(request, receiverNickname);
+  const chatRoom = await createChatRoom(request, sender.id, roomName);
+  await joinChatRoom(request, chatRoom.id, receiver.id);
+
+  const senderContext = await browser.newContext();
+  const receiverContext = await browser.newContext();
+  const senderPage = await senderContext.newPage();
+  const receiverPage = await receiverContext.newPage();
+
+  // 수신자: 로그인 → 채팅방 목록에서 대기
+  const subPromise = receiverPage.waitForEvent('console', {
+    predicate: msg => msg.text().includes(`Subscribed to: /topic/chatroom.${chatRoom.id}`),
+    timeout: 15000,
+  });
+  await receiverPage.goto('/login');
+  await receiverPage.getByLabel('닉네임').fill(receiver.nickname);
+  await receiverPage.getByRole('button', { name: '채팅 시작' }).click();
+  await receiverPage.waitForURL('**/');
+  await expect(receiverPage.getByText(roomName).first()).toBeVisible({ timeout: 10000 });
+  await subPromise;
+
+  const roomRow = receiverPage.locator('.cursor-pointer').filter({ hasText: roomName });
+  const unreadBadge = roomRow.locator('.bg-red-500');
+
+  // 초기 상태: unread 배지 없음
+  await expect(unreadBadge).not.toBeVisible();
+
+  // 발신자: 로그인 → 채팅방 입장 → 첫 번째 메시지 전송
+  await senderPage.goto('/login');
+  await senderPage.getByLabel('닉네임').fill(sender.nickname);
+  await senderPage.getByRole('button', { name: '채팅 시작' }).click();
+  await senderPage.waitForURL('**/');
+  await senderPage.getByText(roomName).click();
+  await waitForConnected(senderPage);
+
+  await senderPage.getByPlaceholder(/메시지를 입력하세요/).fill(`msg1_${Date.now()}`);
+  await senderPage.getByRole('button', { name: '전송' }).click();
+
+  // 수신자: unreadCount 배지 1 표시 (AC-ROOM-001-10)
+  await expect(unreadBadge).toHaveText('1', { timeout: 10000 });
+
+  // 두 번째 메시지 전송
+  await senderPage.getByPlaceholder(/메시지를 입력하세요/).fill(`msg2_${Date.now()}`);
+  await senderPage.getByRole('button', { name: '전송' }).click();
+
+  // 수신자: unreadCount 배지 2로 증가
+  await expect(unreadBadge).toHaveText('2', { timeout: 10000 });
+
+  await senderContext.close();
+  await receiverContext.close();
+});
+
+// ─────────────────────────────────────────────
 // E2E-SCALE-001 | 크로스 인스턴스 실시간 메시지 동기화
 // Nginx 로드밸런싱 환경에서 서로 다른 chat-server 인스턴스에
 // 연결된 두 사용자 간 실시간 메시지 수신을 검증한다.
