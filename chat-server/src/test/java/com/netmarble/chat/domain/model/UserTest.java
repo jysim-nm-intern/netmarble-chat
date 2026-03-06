@@ -89,14 +89,14 @@ class UserTest {
     @Test
     void updateProfileImage_이미지_설정() {
         User user = new User("alice");
-        user.updateProfileImage("data:image/png;base64,abc");
-        assertEquals("data:image/png;base64,abc", user.getProfileImage());
+        user.updateProfileImage("/uploads/profiles/2026/03/04/test-uuid.png");
+        assertEquals("/uploads/profiles/2026/03/04/test-uuid.png", user.getProfileImage());
     }
 
     @Test
     void updateProfileImage_null로_이미지_제거() {
         User user = new User("alice");
-        user.updateProfileImage("data:image/png;base64,abc");
+        user.updateProfileImage("/uploads/profiles/2026/03/04/test-uuid.png");
         user.updateProfileImage(null);
         assertNull(user.getProfileImage());
     }

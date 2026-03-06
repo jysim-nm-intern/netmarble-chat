@@ -3,6 +3,7 @@ package com.netmarble.chat.presentation.controller;
 import com.netmarble.chat.application.dto.CreateUserRequest;
 import com.netmarble.chat.application.dto.UserResponse;
 import com.netmarble.chat.application.service.UserApplicationService;
+import com.netmarble.chat.domain.service.FileStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,7 @@ import java.util.Map;
 public class UserController {
 
     private final UserApplicationService userApplicationService;
+    private final FileStorageService fileStorageService;
 
     /**
      * 새로운 사용자 생성 / 로그인
@@ -43,33 +45,18 @@ public class UserController {
 
         String profileImage = null;
         if (image != null && !image.isEmpty()) {
-            profileImage = encodeImageToBase64(image);
+            try {
+                profileImage = fileStorageService.store(
+                        image.getInputStream(), image.getContentType(),
+                        image.getOriginalFilename(), image.getSize(), "profiles");
+            } catch (java.io.IOException e) {
+                throw new RuntimeException("파일 읽기 실패", e);
+            }
         }
 
         CreateUserRequest request = new CreateUserRequest(nickname, profileColor, profileImage);
         UserResponse response = userApplicationService.createUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    /**
-     * 이미지 파일을 Base64 Data URL로 변환
-     */
-    private String encodeImageToBase64(MultipartFile image) {
-        String contentType = image.getContentType();
-        if (contentType == null ||
-                (!contentType.equals("image/jpeg") && !contentType.equals("image/png") && !contentType.equals("image/gif"))) {
-            throw new IllegalArgumentException("JPG, PNG, GIF 형식만 지원합니다.");
-        }
-        if (image.getSize() > 5L * 1024 * 1024) {
-            throw new IllegalArgumentException("이미지 크기가 5MB를 초과합니다.");
-        }
-        try {
-            byte[] bytes = image.getBytes();
-            String base64 = java.util.Base64.getEncoder().encodeToString(bytes);
-            return "data:" + contentType + ";base64," + base64;
-        } catch (java.io.IOException e) {
-            throw new IllegalArgumentException("이미지 처리 중 오류가 발생했습니다.");
-        }
     }
 
     /**

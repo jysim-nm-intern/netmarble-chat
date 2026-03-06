@@ -9,6 +9,9 @@ import { defineConfig, devices } from '@playwright/test';
 // import path from 'path';
 // dotenv.config({ path: path.resolve(__dirname, '.env') });
 
+// scale 모드: E2E_BASE_URL=http://localhost:3002 E2E_API_BASE=http://localhost:8888
+const baseURL = process.env.E2E_BASE_URL || 'http://localhost:3000';
+
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
@@ -33,7 +36,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
-    baseURL: 'http://localhost:3000',
+    baseURL,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -62,8 +65,8 @@ export default defineConfig({
         },
       ],
 
-  /* start-all.sh 로 실행 중인 서버를 재사용 */
-  webServer: {
+  /* E2E_BASE_URL 지정 시 Docker 컨테이너 재사용, 미지정 시 로컬 dev 서버 기동 */
+  webServer: process.env.E2E_BASE_URL ? undefined : {
     command: 'npm run dev -- --port 3000',
     url: 'http://localhost:3000',
     reuseExistingServer: true,

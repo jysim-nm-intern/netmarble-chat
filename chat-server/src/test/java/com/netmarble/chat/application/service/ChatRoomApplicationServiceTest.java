@@ -169,7 +169,7 @@ class ChatRoomApplicationServiceTest {
 
         assertNotNull(response);
         verify(messageRepository).save(any(Message.class));
-        verify(messagingTemplate).convertAndSend(eq("/topic/chatroom/10"), any(MessageResponse.class));
+        verify(messagingTemplate).convertAndSend(eq("/topic/chatroom.10"), any(MessageResponse.class));
     }
 
     @Test
@@ -220,7 +220,7 @@ class ChatRoomApplicationServiceTest {
 
         assertDoesNotThrow(() -> chatRoomApplicationService.leaveChatRoom(10L, 2L));
 
-        verify(messagingTemplate).convertAndSend(eq("/topic/chatroom/10"), any(MessageResponse.class));
+        verify(messagingTemplate).convertAndSend(eq("/topic/chatroom.10"), any(MessageResponse.class));
     }
 
     @Test

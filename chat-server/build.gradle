@@ -39,6 +39,12 @@ dependencies {
     // Redis — 읽음 상태 원자적 처리
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
+    // Reactor Netty — StompBrokerRelay TCP 클라이언트 (RabbitMQ STOMP 연결용)
+    implementation 'io.projectreactor.netty:reactor-netty'
+
+    // Actuator — 헬스체크 엔드포인트 (Nginx 로드밸런서용)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

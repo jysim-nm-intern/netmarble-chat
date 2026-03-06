@@ -115,8 +115,8 @@ class WebSocketService {
       return null;
     }
 
-    const destination = `/topic/chatroom/${chatRoomId}`;
-    
+    const destination = `/topic/chatroom.${chatRoomId}`;
+
     // 이미 구독 중이면 기존 구독 취소
     if (this.subscriptions.has(destination)) {
       this.subscriptions.get(destination).unsubscribe();
@@ -144,19 +144,19 @@ class WebSocketService {
    * 채팅방 구독 취소
    */
   unsubscribeFromChatRoom(chatRoomId) {
-    const destination = `/topic/chatroom/${chatRoomId}`;
+    const destination = `/topic/chatroom.${chatRoomId}`;
     const subscription = this.subscriptions.get(destination);
-    
+
     if (subscription) {
       subscription.unsubscribe();
       this.subscriptions.delete(destination);
       console.log('Unsubscribed from:', destination);
     }
-    
+
     // 읽음 상태 구독도 취소
-    const readStatusDestination = `/topic/chatroom/${chatRoomId}/read-status`;
+    const readStatusDestination = `/topic/chatroom.${chatRoomId}.read-status`;
     const readStatusSubscription = this.subscriptions.get(readStatusDestination);
-    
+
     if (readStatusSubscription) {
       readStatusSubscription.unsubscribe();
       this.subscriptions.delete(readStatusDestination);
@@ -173,7 +173,7 @@ class WebSocketService {
       return null;
     }
 
-    const destination = `/topic/chatroom/${chatRoomId}/read-status`;
+    const destination = `/topic/chatroom.${chatRoomId}.read-status`;
     
     // 이미 구독 중이면 기존 구독 취소
     if (this.subscriptions.has(destination)) {

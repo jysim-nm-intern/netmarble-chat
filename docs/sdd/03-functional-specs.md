@@ -72,7 +72,7 @@ GET /api/chat-rooms?userId={userId}
 
 **실시간 갱신 계약 (WebSocket):**
 ```
-구독: /topic/chatroom/{chatRoomId}  (참가중인 모든 채팅방)
+구독: /topic/chatroom.{chatRoomId}  (참가중인 모든 채팅방)
 수신 데이터: MessageResponse (새 메시지 브로드캐스트)
 → 수신 시 해당 채팅방의 lastMessageContent, lastMessageAt, unreadCount를 로컬에서 갱신
 ```
