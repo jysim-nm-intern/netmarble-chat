@@ -7,6 +7,7 @@ export abstract class UserRepository {
   abstract findById(id: number): Promise<User | null>;
   abstract findByNickname(nickname: string): Promise<User | null>;
   abstract findAllActiveUsers(): Promise<User[]>;
+  abstract findByIds(ids: number[]): Promise<Map<number, User>>;
   abstract existsByNickname(nickname: string): Promise<boolean>;
   abstract delete(user: User): Promise<void>;
 }

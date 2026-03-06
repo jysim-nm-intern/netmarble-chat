@@ -79,6 +79,9 @@ export class ChatRoomApplicationService {
       0,
       100,
     );
+    if (chatRooms.length === 0) return [];
+
+    const roomIds = chatRooms.map((r) => r.id!);
 
     const memberRoomIds = userId
       ? await this.chatRoomMemberRepository.findActiveChatRoomIdsByUserId(
@@ -86,13 +89,111 @@ export class ChatRoomApplicationService {
         )
       : new Set<number>();
 
-    const results: ChatRoomResponse[] = [];
+    // 배치 로드: creators, members, lastMessages (N+1 제거)
+    const creatorIds = [...new Set(chatRooms.map((r) => r.creatorId))];
+    const memberRoomIdList = roomIds.filter((id) => memberRoomIds.has(id));
+
+    const [creatorsMap, membersMap, lastMessagesMap] = await Promise.all([
+      this.userRepository.findByIds(creatorIds),
+      this.chatRoomMemberRepository.findActiveByChatRoomIds(roomIds),
+      this.messageRepository.findLastByChatRoomIds(memberRoomIdList),
+    ]);
+
+    // 아바타 유저 배치 로드
+    const avatarUserIds = new Set<number>();
     for (const room of chatRooms) {
-      results.push(
-        await this.buildRoomResponse(room, userId, memberRoomIds),
-      );
+      const members = membersMap.get(room.id!) || [];
+      members
+        .filter((m) => userId === null || m.userId !== userId)
+        .sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())
+        .slice(0, 4)
+        .forEach((m) => avatarUserIds.add(m.userId));
     }
-    return results;
+    const avatarUsersMap = await this.userRepository.findByIds([
+      ...avatarUserIds,
+    ]);
+
+    // 읽지 않은 메시지 수 병렬 조회 (전체 메시지 로드 → COUNT 쿼리로 전환)
+    const unreadCounts = new Map<number, number>();
+    if (userId) {
+      const unreadPromises: Promise<void>[] = [];
+      for (const roomId of memberRoomIdList) {
+        const members = membersMap.get(roomId) || [];
+        const userMember = members.find((m) => m.userId === userId);
+        if (!userMember) continue;
+        unreadPromises.push(
+          (userMember.lastReadMessageId
+            ? this.messageRepository.countByChatRoomIdAndIdGreaterThanAndSenderIdNot(
+                roomId,
+                userMember.lastReadMessageId,
+                userId,
+              )
+            : this.messageRepository.countByChatRoomIdAndSenderIdNot(
+                roomId,
+                userId,
+              )
+          ).then((count) => {
+            unreadCounts.set(roomId, count);
+          }),
+        );
+      }
+      await Promise.all(unreadPromises);
+    }
+
+    return chatRooms.map((room) => {
+      const isMember = memberRoomIds.has(room.id!);
+      const creator = creatorsMap.get(room.creatorId);
+      const members = membersMap.get(room.id!) || [];
+
+      let lastMessageContent: string | null = null;
+      let lastMessageAt: Date | null = null;
+
+      if (isMember) {
+        const lastMsg = lastMessagesMap.get(room.id!);
+        if (lastMsg) {
+          lastMessageContent =
+            lastMsg.type === MessageType.IMAGE
+              ? '[사진]'
+              : lastMsg.type === MessageType.STICKER
+                ? '[스티커]'
+                : lastMsg.content;
+          lastMessageAt = lastMsg.sentAt;
+        }
+      }
+
+      const avatarMembers = members
+        .filter((m) => userId === null || m.userId !== userId)
+        .sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())
+        .slice(0, 4);
+
+      const avatars: MemberAvatar[] = [];
+      for (const m of avatarMembers) {
+        const u = avatarUsersMap.get(m.userId);
+        if (u) {
+          const avatar = new MemberAvatar();
+          avatar.profileColor = u.profileColor;
+          avatar.profileImage = u.profileImage;
+          avatar.nickname = u.nickname;
+          avatars.push(avatar);
+        }
+      }
+
+      const dto = new ChatRoomResponse();
+      dto.id = room.id!;
+      dto.name = room.name;
+      dto.imageUrl = room.imageUrl;
+      dto.creatorId = room.creatorId;
+      dto.creatorNickname = creator?.nickname ?? 'Unknown';
+      dto.createdAt = room.createdAt;
+      dto.active = room.active;
+      dto.memberCount = members.length;
+      dto.unreadCount = unreadCounts.get(room.id!) ?? 0;
+      dto.isMember = isMember;
+      dto.lastMessageContent = lastMessageContent;
+      dto.lastMessageAt = lastMessageAt;
+      dto.memberAvatars = avatars;
+      return dto;
+    });
   }
 
   async getChatRoomById(id: number): Promise<ChatRoomResponse> {
@@ -190,23 +291,28 @@ export class ChatRoomApplicationService {
   ): Promise<ChatRoomMemberResponse[]> {
     const members =
       await this.chatRoomMemberRepository.findActiveByChatRoomId(chatRoomId);
-    const results: ChatRoomMemberResponse[] = [];
-    for (const m of members) {
-      const user = await this.userRepository.findById(m.userId);
-      if (!user) continue;
-      const dto = new ChatRoomMemberResponse();
-      dto.id = m.id!;
-      dto.userId = user.id!;
-      dto.nickname = user.nickname;
-      dto.profileColor = user.profileColor;
-      dto.profileImage = user.profileImage;
-      dto.joinedAt = m.joinedAt;
-      dto.leftAt = m.leftAt;
-      dto.active = m.active;
-      dto.lastReadMessageId = m.lastReadMessageId;
-      results.push(dto);
-    }
-    return results;
+    if (members.length === 0) return [];
+
+    // 배치 로드: 유저 정보 (N+1 제거)
+    const userIds = members.map((m) => m.userId);
+    const usersMap = await this.userRepository.findByIds(userIds);
+
+    return members
+      .filter((m) => usersMap.has(m.userId))
+      .map((m) => {
+        const user = usersMap.get(m.userId)!;
+        const dto = new ChatRoomMemberResponse();
+        dto.id = m.id!;
+        dto.userId = user.id!;
+        dto.nickname = user.nickname;
+        dto.profileColor = user.profileColor;
+        dto.profileImage = user.profileImage;
+        dto.joinedAt = m.joinedAt;
+        dto.leftAt = m.leftAt;
+        dto.active = m.active;
+        dto.lastReadMessageId = m.lastReadMessageId;
+        return dto;
+      });
   }
 
   async updateMemberActiveStatus(
@@ -265,114 +371,6 @@ export class ChatRoomApplicationService {
       `/topic/chatroom.${chatRoomId}`,
       JSON.stringify(response),
     );
-  }
-
-  private async buildRoomResponse(
-    room: ChatRoom,
-    userId: number | null,
-    memberRoomIds: Set<number>,
-  ): Promise<ChatRoomResponse> {
-    const isMember = memberRoomIds.has(room.id!);
-    const creator = await this.userRepository.findById(room.creatorId);
-    const members = await this.chatRoomMemberRepository.findActiveByChatRoomId(
-      room.id!,
-    );
-
-    let lastMessageContent: string | null = null;
-    let lastMessageAt: Date | null = null;
-    let unreadCount = 0;
-
-    if (isMember) {
-      const lastMsg = await this.messageRepository.findLastByChatRoomId(
-        room.id!,
-      );
-      if (lastMsg) {
-        lastMessageContent =
-          lastMsg.type === MessageType.IMAGE
-            ? '[사진]'
-            : lastMsg.type === MessageType.STICKER
-              ? '[스티커]'
-              : lastMsg.content;
-        lastMessageAt = lastMsg.sentAt;
-      }
-
-      if (userId) {
-        const member =
-          await this.chatRoomMemberRepository.findActiveByChatRoomIdAndUserId(
-            room.id!,
-            userId,
-          );
-        if (member) {
-          const allMsgs =
-            await this.messageRepository.findByChatRoomIdOrderBySentAtAsc(
-              room.id!,
-            );
-          unreadCount = this.calculateUnreadForMember(
-            allMsgs,
-            member,
-            userId,
-          );
-        }
-      }
-    }
-
-    // 멤버 아바타 (최대 4명, 본인 제외)
-    const avatarMembers = members
-      .filter((m) => userId === null || m.userId !== userId)
-      .sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())
-      .slice(0, 4);
-
-    const avatars: MemberAvatar[] = [];
-    for (const m of avatarMembers) {
-      const u = await this.userRepository.findById(m.userId);
-      if (u) {
-        const avatar = new MemberAvatar();
-        avatar.profileColor = u.profileColor;
-        avatar.profileImage = u.profileImage;
-        avatar.nickname = u.nickname;
-        avatars.push(avatar);
-      }
-    }
-
-    const dto = new ChatRoomResponse();
-    dto.id = room.id!;
-    dto.name = room.name;
-    dto.imageUrl = room.imageUrl;
-    dto.creatorId = room.creatorId;
-    dto.creatorNickname = creator?.nickname ?? 'Unknown';
-    dto.createdAt = room.createdAt;
-    dto.active = room.active;
-    dto.memberCount = members.length;
-    dto.unreadCount = unreadCount;
-    dto.isMember = isMember;
-    dto.lastMessageContent = lastMessageContent;
-    dto.lastMessageAt = lastMessageAt;
-    dto.memberAvatars = avatars;
-    return dto;
-  }
-
-  private calculateUnreadForMember(
-    allMsgs: Message[],
-    member: ChatRoomMember,
-    userId: number,
-  ): number {
-    if (!member.lastReadMessageId) {
-      return allMsgs.filter(
-        (m) => m.sender && m.sender.id !== userId,
-      ).length;
-    }
-    let foundLastRead = false;
-    let count = 0;
-    for (const msg of allMsgs) {
-      if (msg.id === member.lastReadMessageId) {
-        foundLastRead = true;
-        continue;
-      }
-      if (foundLastRead && msg.sender && msg.sender.id !== userId) {
-        count++;
-      }
-    }
-    return count;
   }
 
   private buildBasicResponse(

@@ -33,6 +33,6 @@ export class ChatRoomMemberEntity {
   @Column({ name: 'last_active_at', type: 'timestamp' })
   lastActiveAt!: Date;
 
-  @Column({ name: 'last_read_message_id', type: 'bigint', nullable: true })
+  @Column({ name: 'last_read_message_id', type: 'int', nullable: true })
   lastReadMessageId: number | null = null;
 }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { User } from '../../../domain/model/user.js';
 import { UserRepository } from '../../../domain/repository/user.repository.js';
 import { UserEntity } from '../entity/user.entity.js';
@@ -33,6 +33,16 @@ export class TypeormUserRepository extends UserRepository {
   async findAllActiveUsers(): Promise<User[]> {
     const entities = await this.repo.findBy({ active: true });
     return entities.map((e) => this.toDomain(e));
+  }
+
+  async findByIds(ids: number[]): Promise<Map<number, User>> {
+    if (ids.length === 0) return new Map();
+    const entities = await this.repo.findBy({ id: In(ids) });
+    const map = new Map<number, User>();
+    for (const e of entities) {
+      map.set(e.id, this.toDomain(e));
+    }
+    return map;
   }
 
   async existsByNickname(nickname: string): Promise<boolean> {

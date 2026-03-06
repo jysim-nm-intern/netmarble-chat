@@ -68,6 +68,12 @@ import { WebSocketMessageGateway } from './presentation/gateway/websocket-messag
         ],
         synchronize: config.get<string>('TYPEORM_SYNC', 'false') === 'true',
         logging: config.get<string>('NODE_ENV') !== 'production',
+        extra: {
+          connectionLimit: 50,
+          waitForConnections: true,
+          connectTimeout: 10000,
+          queueLimit: 0,
+        },
       }),
     }),
     TypeOrmModule.forFeature([

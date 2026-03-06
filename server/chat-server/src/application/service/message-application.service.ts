@@ -82,11 +82,11 @@ export class MessageApplicationService {
       );
     }
 
-    const unreadCount = await this.calculateUnreadCount(
-      chatRoom.id!,
-      savedMessage,
-      sender.id!,
-    );
+    const members =
+      await this.chatRoomMemberRepository.findActiveByChatRoomId(chatRoom.id!);
+    const unreadCount = members.filter(
+      (m) => m.userId !== sender.id! && !m.hasReadMessage(savedMessage.id!),
+    ).length;
 
     return this.buildResponse(savedMessage, sender, attachment, unreadCount);
   }
@@ -117,21 +117,36 @@ export class MessageApplicationService {
         );
     }
 
-    const results: MessageResponse[] = [];
-    for (const msg of messages) {
+    if (messages.length === 0) return [];
+
+    // 배치 로드: senders, attachments (N+1 제거)
+    const senderIds = [
+      ...new Set(
+        messages.filter((m) => m.sender?.id).map((m) => m.sender!.id!),
+      ),
+    ];
+    const messageIds = messages.filter((m) => m.id).map((m) => m.id!);
+
+    const [sendersMap, attachmentsMap, members] = await Promise.all([
+      this.userRepository.findByIds(senderIds),
+      this.attachmentRepository.findByMessageIds(messageIds),
+      this.chatRoomMemberRepository.findActiveByChatRoomId(chatRoomId),
+    ]);
+
+    return messages.map((msg) => {
       const sender = msg.sender?.id
-        ? await this.userRepository.findById(msg.sender.id)
+        ? (sendersMap.get(msg.sender.id) ?? null)
         : null;
       const attachment = msg.id
-        ? await this.attachmentRepository.findByMessageId(msg.id)
+        ? (attachmentsMap.get(msg.id) ?? null)
         : null;
-      const unreadCount =
-        sender
-          ? await this.calculateUnreadCount(chatRoomId, msg, sender.id!)
-          : 0;
-      results.push(this.buildResponse(msg, sender, attachment, unreadCount));
-    }
-    return results;
+      const unreadCount = sender
+        ? members.filter(
+            (m) => m.userId !== sender.id! && !m.hasReadMessage(msg.id!),
+          ).length
+        : 0;
+      return this.buildResponse(msg, sender, attachment, unreadCount);
+    });
   }
 
   async getMessageById(id: number): Promise<MessageResponse> {
@@ -173,35 +188,36 @@ export class MessageApplicationService {
       chatRoomId,
       trimmed,
     );
+    if (messages.length === 0) return [];
 
-    const results: MessageResponse[] = [];
-    for (const msg of messages) {
+    // 배치 로드: senders, attachments, members (N+1 제거)
+    const senderIds = [
+      ...new Set(
+        messages.filter((m) => m.sender?.id).map((m) => m.sender!.id!),
+      ),
+    ];
+    const messageIds = messages.filter((m) => m.id).map((m) => m.id!);
+
+    const [sendersMap, attachmentsMap, members] = await Promise.all([
+      this.userRepository.findByIds(senderIds),
+      this.attachmentRepository.findByMessageIds(messageIds),
+      this.chatRoomMemberRepository.findActiveByChatRoomId(chatRoomId),
+    ]);
+
+    return messages.map((msg) => {
       const sender = msg.sender?.id
-        ? await this.userRepository.findById(msg.sender.id)
+        ? (sendersMap.get(msg.sender.id) ?? null)
         : null;
       const attachment = msg.id
-        ? await this.attachmentRepository.findByMessageId(msg.id)
+        ? (attachmentsMap.get(msg.id) ?? null)
         : null;
-      const unreadCount =
-        sender
-          ? await this.calculateUnreadCount(chatRoomId, msg, sender.id!)
-          : 0;
-      results.push(this.buildResponse(msg, sender, attachment, unreadCount));
-    }
-    return results;
-  }
-
-  private async calculateUnreadCount(
-    chatRoomId: number,
-    message: Message,
-    senderId: number,
-  ): Promise<number> {
-    const members =
-      await this.chatRoomMemberRepository.findActiveByChatRoomId(chatRoomId);
-    return members.filter(
-      (m) =>
-        m.userId !== senderId && !m.hasReadMessage(message.id!),
-    ).length;
+      const unreadCount = sender
+        ? members.filter(
+            (m) => m.userId !== sender.id! && !m.hasReadMessage(msg.id!),
+          ).length
+        : 0;
+      return this.buildResponse(msg, sender, attachment, unreadCount);
+    });
   }
 
   private buildResponse(

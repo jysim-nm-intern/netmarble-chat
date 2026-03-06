@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ChatRoomMember } from '../../../domain/model/chat-room-member.js';
 import { ChatRoomMemberRepository } from '../../../domain/repository/chat-room-member.repository.js';
 import { ChatRoomMemberEntity } from '../entity/chat-room-member.entity.js';
@@ -63,6 +63,22 @@ export class TypeormChatRoomMemberRepository extends ChatRoomMemberRepository {
     return entities.map((e) => this.toDomain(e));
   }
 
+  async findActiveByChatRoomIds(
+    chatRoomIds: number[],
+  ): Promise<Map<number, ChatRoomMember[]>> {
+    if (chatRoomIds.length === 0) return new Map();
+    const entities = await this.repo.find({
+      where: { chatRoomId: In(chatRoomIds), active: true },
+    });
+    const map = new Map<number, ChatRoomMember[]>();
+    for (const e of entities) {
+      const list = map.get(e.chatRoomId) || [];
+      list.push(this.toDomain(e));
+      map.set(e.chatRoomId, list);
+    }
+    return map;
+  }
+
   private toEntity(member: ChatRoomMember): ChatRoomMemberEntity {
     const entity = new ChatRoomMemberEntity();
     if (member.id) entity.id = member.id;
@@ -87,7 +103,9 @@ export class TypeormChatRoomMemberRepository extends ChatRoomMemberRepository {
     member.active = entity.active;
     member.online = entity.online;
     member.lastActiveAt = entity.lastActiveAt;
-    member.lastReadMessageId = entity.lastReadMessageId;
+    member.lastReadMessageId = entity.lastReadMessageId != null
+      ? Number(entity.lastReadMessageId)
+      : null;
     return member;
   }
 }

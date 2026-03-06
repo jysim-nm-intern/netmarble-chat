@@ -4,9 +4,11 @@ import {
   Column,
   CreateDateColumn,
   VersionColumn,
+  Index,
 } from 'typeorm';
 
 @Entity('chat_rooms')
+@Index('idx_room_active', ['active'])
 export class ChatRoomEntity {
   @PrimaryGeneratedColumn()
   id!: number;

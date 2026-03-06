@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, Like, Not } from 'typeorm';
+import { In, Repository, MoreThan, Like, Not } from 'typeorm';
 import { Message, MessageType } from '../../../domain/model/message.js';
 import { MessageRepository } from '../../../domain/repository/message.repository.js';
 import { MessageEntity } from '../entity/message.entity.js';
@@ -81,6 +81,25 @@ export class TypeormMessageRepository extends MessageRepository {
     return entity ? this.toDomain(entity) : null;
   }
 
+  async findLastByChatRoomIds(
+    chatRoomIds: number[],
+  ): Promise<Map<number, Message>> {
+    if (chatRoomIds.length === 0) return new Map();
+    const entities = await this.repo
+      .createQueryBuilder('m')
+      .where('m.chat_room_id IN (:...ids)', { ids: chatRoomIds })
+      .andWhere('m.deleted = :deleted', { deleted: false })
+      .andWhere(
+        'm.id = (SELECT MAX(sub.id) FROM messages sub WHERE sub.chat_room_id = m.chat_room_id AND sub.deleted = false)',
+      )
+      .getMany();
+    const map = new Map<number, Message>();
+    for (const e of entities) {
+      map.set(e.chatRoomId, this.toDomain(e));
+    }
+    return map;
+  }
+
   async countByChatRoomIdAndIdGreaterThanAndSenderIdNot(
     chatRoomId: number,
     afterMessageId: number,
@@ -130,7 +149,7 @@ export class TypeormMessageRepository extends MessageRepository {
     message.id = entity.id;
     message.chatRoomId = entity.chatRoomId;
     message.sender = entity.senderId
-      ? ({ id: entity.senderId } as any)
+      ? ({ id: Number(entity.senderId) } as any)
       : null;
     message.content = entity.content;
     message.type = entity.type as MessageType;

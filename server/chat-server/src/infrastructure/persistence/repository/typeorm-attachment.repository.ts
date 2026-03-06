@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Attachment } from '../../../domain/model/attachment.js';
 import { AttachmentRepository } from '../../../domain/repository/attachment.repository.js';
 import { AttachmentEntity } from '../entity/attachment.entity.js';
@@ -23,6 +23,20 @@ export class TypeormAttachmentRepository extends AttachmentRepository {
   async findByMessageId(messageId: number): Promise<Attachment | null> {
     const entity = await this.repo.findOneBy({ messageId });
     return entity ? this.toDomain(entity) : null;
+  }
+
+  async findByMessageIds(
+    messageIds: number[],
+  ): Promise<Map<number, Attachment>> {
+    if (messageIds.length === 0) return new Map();
+    const entities = await this.repo.find({
+      where: { messageId: In(messageIds) },
+    });
+    const map = new Map<number, Attachment>();
+    for (const e of entities) {
+      map.set(e.messageId, this.toDomain(e));
+    }
+    return map;
   }
 
   async delete(attachment: Attachment): Promise<void> {
