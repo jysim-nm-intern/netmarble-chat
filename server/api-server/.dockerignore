@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+*.md
+.env*
+coverage
+test
+.eslintrc.js
+.prettierrc
+jest.config.*
