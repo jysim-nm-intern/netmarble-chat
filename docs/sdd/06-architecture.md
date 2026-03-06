@@ -77,7 +77,7 @@
 ## 패키지 구조 (NestJS — chat-server)
 
 ```
-chat-server/src/
+server/chat-server/src/
 ├── main.ts                              ← NestJS 부트스트랩
 ├── app.module.ts                        ← 루트 모듈
 │
@@ -152,7 +152,7 @@ chat-server/src/
 ## 패키지 구조 (NestJS — api-server)
 
 ```
-api-server/src/
+server/api-server/src/
 ├── main.ts                              ← NestJS 부트스트랩 (포트 8081)
 ├── app.module.ts                        ← 루트 모듈
 │

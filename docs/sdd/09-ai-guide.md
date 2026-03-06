@@ -40,7 +40,7 @@
 
 구현 조건:
 - 백엔드 구현 순서: Domain Entity → Repository Interface → DTO → Service → Controller
-- 코드 컨벤션: chat-server/.claude/rules/ 준수
+- 코드 컨벤션: server/chat-server/.claude/rules/ 준수
   - DTO는 TypeScript class + class-validator 데코레이터 사용
   - 의존성 주입은 NestJS @Injectable + 생성자 주입
   - 예외는 GlobalExceptionFilter에서 처리
@@ -53,7 +53,7 @@
   - 도메인 모델: 80% 이상
   - 애플리케이션 서비스: 70% 이상
   - 구현 후 npm test -- --coverage 실행하여 기준 충족 확인
-- 금지 사항: chat-server/.claude/rules/anti_pattern.md 참조
+- 금지 사항: server/chat-server/.claude/rules/anti_pattern.md 참조
 ```
 
 ### 버그 수정 요청
@@ -400,8 +400,8 @@ GitHub Repository → Settings → Secrets and variables → Actions
 
 ```
 ✅ 포함 (리뷰 대상)
-  chat-server/src/
-  api-server/src/
+  server/chat-server/src/
+  server/api-server/src/
   client/src/components/
   client/src/api/
   client/src/store/
@@ -482,8 +482,8 @@ PR 생성 전 (로컬)                PR 생성 후 (GitHub Actions)
 3. 코드 구현 (Domain → Repository → DTO → Service → Controller)
        ↓
 4. 테스트 실행 및 커버리지 확인
-   $ cd chat-server && npm test -- --coverage
-   → chat-server/coverage/lcov-report/index.html 확인
+   $ cd server/chat-server && npm test -- --coverage
+   → server/chat-server/coverage/lcov-report/index.html 확인
        ↓
 5. 커버리지 기준 미달 시 테스트 보완 (SPEC-NFR-005 참조)
    - src/domain/model/: 80% / src/domain/service/: 90% / src/application/service/: 70%

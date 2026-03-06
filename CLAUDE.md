@@ -5,7 +5,7 @@
 ## 1. Context Hierarchy (가이드라인 우선순위)
 
 1. **SDD 명세 (최우선):** `docs/sdd-specification.md` 및 `docs/sdd/` 하위 문서
-2. **Local 규칙:** `chat-server/.claude/rules/`, `client/.claude/rules/`
+2. **Local 규칙:** `server/chat-server/.claude/rules/`, `client/.claude/rules/`
 3. **Index:** 본 파일 (`CLAUDE.md`)
 
 ---
@@ -47,10 +47,10 @@
   아래 4가지 테스트를 모두 실행하고 결과(통과 수, 실패 수)를 기록합니다.
   ```
   # Server 단위 테스트
-  cd chat-server && npm test
+  cd server/chat-server && npm test
 
   # Server 통합 테스트 (MySQL 필요)
-  cd chat-server && npm run test:e2e
+  cd server/chat-server && npm run test:e2e
 
   # Client 단위 테스트
   cd client && npm test
@@ -141,7 +141,7 @@
 
 ### Backend (NestJS)
 
-- **규칙:** `chat-server/.claude/rules/` 참조
+- **규칙:** `server/chat-server/.claude/rules/` 참조
 - **핵심 스택:** Node.js 20, NestJS 10.x, TypeORM, Mongoose, MySQL, MongoDB, Redis, STOMP
 - **특이사항:** 인메모리 STOMP 브로커 (기본) / RabbitMQ (scale 모드), `/topic` 구독 · `/app` 발행 경로.
 

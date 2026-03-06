@@ -15,7 +15,7 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./chat-server-spring/src/main/resources/schema-mysql.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./server/chat-server-spring/src/main/resources/schema-mysql.sql:/docker-entrypoint-initdb.d/schema.sql
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
@@ -76,7 +76,7 @@ services:
   # ─────────────────────────────────────────────
   server:
     build:
-      context: ./chat-server
+      context: ./server/chat-server
       dockerfile: Dockerfile
     container_name: netmarble-chat-server
     environment:
@@ -111,7 +111,7 @@ services:
   # ─────────────────────────────────────────────
   api-server:
     build:
-      context: ./api-server
+      context: ./server/api-server
       dockerfile: Dockerfile
     container_name: netmarble-chat-api-server
     environment:
@@ -171,7 +171,7 @@ services:
   # ─────────────────────────────────────────────
   chat-server-1:
     build:
-      context: ./chat-server
+      context: ./server/chat-server
       dockerfile: Dockerfile
     container_name: netmarble-chat-server-1
     profiles: ["scale"]
@@ -209,7 +209,7 @@ services:
 
   chat-server-2:
     build:
-      context: ./chat-server
+      context: ./server/chat-server
       dockerfile: Dockerfile
     container_name: netmarble-chat-server-2
     profiles: ["scale"]
@@ -305,7 +305,7 @@ services:
   # ─────────────────────────────────────────────
   server-test:
     build:
-      context: ./chat-server
+      context: ./server/chat-server
       dockerfile: Dockerfile
       target: builder
     profiles: ["test"]
@@ -326,7 +326,7 @@ services:
   # ─────────────────────────────────────────────
   server-load:
     build:
-      context: ./chat-server
+      context: ./server/chat-server
       dockerfile: Dockerfile
     container_name: netmarble-chat-server-load
     profiles: ["load"]
