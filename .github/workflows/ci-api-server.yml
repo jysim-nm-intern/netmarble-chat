@@ -4,15 +4,15 @@ on:
   push:
     branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
-      - 'api-server/src/**'
-      - 'api-server/package.json'
-      - 'api-server/tsconfig.json'
+      - 'server/api-server/src/**'
+      - 'server/api-server/package.json'
+      - 'server/api-server/tsconfig.json'
   pull_request:
     branches: [ main, master, phase-*, 'copilot/**' ]
     paths:
-      - 'api-server/src/**'
-      - 'api-server/package.json'
-      - 'api-server/tsconfig.json'
+      - 'server/api-server/src/**'
+      - 'server/api-server/package.json'
+      - 'server/api-server/tsconfig.json'
 
 jobs:
   # ─── 단위 테스트 (Jest, 외부 인프라 불필요) ──────────────────────────────────
@@ -27,7 +27,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: api-server
+        working-directory: server/api-server
 
     steps:
       - uses: actions/checkout@v4
@@ -35,11 +35,11 @@ jobs:
       - name: api-server 디렉토리 존재 확인
         id: check-dir
         run: |
-          if [ -d "api-server/src" ]; then
+          if [ -d "server/api-server/src" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "::notice::api-server 디렉토리가 존재하지 않아 테스트를 건너뜁니다"
+            echo "::notice::server/api-server 디렉토리가 존재하지 않아 테스트를 건너뜁니다"
           fi
         working-directory: .
 
@@ -48,7 +48,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: api-server/package-lock.json
+          cache-dependency-path: server/api-server/package-lock.json
 
       - name: 의존성 설치
         if: steps.check-dir.outputs.exists == 'true'
@@ -64,7 +64,7 @@ jobs:
         if: always() && steps.check-dir.outputs.exists == 'true'
         with:
           name: api-server-coverage-report
-          path: api-server/coverage/
+          path: server/api-server/coverage/
           retention-days: 7
 
   # ─── 통합 테스트 (MongoDB 서비스 컨테이너) ────────────────────────────────────
@@ -79,7 +79,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: api-server
+        working-directory: server/api-server
 
     services:
       mongodb:
@@ -98,7 +98,7 @@ jobs:
       - name: api-server 디렉토리 존재 확인
         id: check-dir
         run: |
-          if [ -d "api-server/src" ]; then
+          if [ -d "server/api-server/src" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
@@ -111,7 +111,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: api-server/package-lock.json
+          cache-dependency-path: server/api-server/package-lock.json
 
       - name: 의존성 설치
         if: steps.check-dir.outputs.exists == 'true'

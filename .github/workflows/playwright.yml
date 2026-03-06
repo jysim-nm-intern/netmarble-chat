@@ -43,7 +43,7 @@ jobs:
     - name: chat-server 디렉토리 존재 확인
       id: check-backend
       run: |
-        if [ -d "chat-server/src" ]; then
+        if [ -d "server/chat-server/src" ]; then
           echo "exists=true" >> $GITHUB_OUTPUT
         else
           echo "exists=false" >> $GITHUB_OUTPUT
@@ -58,22 +58,22 @@ jobs:
         cache: npm
         cache-dependency-path: |
           client/package-lock.json
-          chat-server/package-lock.json
+          server/chat-server/package-lock.json
 
     # ── NestJS 백엔드 기동 (MySQL 서비스 컨테이너) ──────────────────
     - name: chat-server 의존성 설치
       if: steps.check-backend.outputs.exists == 'true'
-      working-directory: chat-server
+      working-directory: server/chat-server
       run: npm ci
 
     - name: chat-server 빌드
       if: steps.check-backend.outputs.exists == 'true'
-      working-directory: chat-server
+      working-directory: server/chat-server
       run: npm run build
 
     - name: NestJS 백엔드 시작 (백그라운드)
       if: steps.check-backend.outputs.exists == 'true'
-      working-directory: chat-server
+      working-directory: server/chat-server
       run: nohup node dist/main.js > /tmp/backend.log 2>&1 &
       env:
         NODE_ENV: test

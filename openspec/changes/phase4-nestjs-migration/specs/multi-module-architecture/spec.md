@@ -7,19 +7,19 @@
 
 | 프로젝트 | 역할 | 의존 |
 |---------|------|------|
-| `chat-server/` | 실시간 채팅 서버 (STOMP + REST + MySQL + MongoDB + Redis) | 독립 |
-| `api-server/` | REST API 서버 (MongoDB 읽기 전용) | 독립 |
+| `server/chat-server/` | 실시간 채팅 서버 (STOMP + REST + MySQL + MongoDB + Redis) | 독립 |
+| `server/api-server/` | REST API 서버 (MongoDB 읽기 전용) | 독립 |
 
 **기존 Java 서버 보존:**
-- `chat-server-spring/` — 기존 Spring Boot chat-server (리네이밍 보존)
-- `api-server-spring/` — 기존 Spring Boot api-server (리네이밍 보존)
+- `server/chat-server-spring/` — 기존 Spring Boot chat-server (리네이밍 보존)
+- `server/api-server-spring/` — 기존 Spring Boot api-server (리네이밍 보존)
 
 #### Scenario: chat-server 독립 빌드
-- **WHEN** `cd chat-server && npm run build`를 실행할 때
+- **WHEN** `cd server/chat-server && npm run build`를 실행할 때
 - **THEN** api-server 없이 독립적으로 빌드가 성공해야 한다
 
 #### Scenario: api-server 독립 빌드
-- **WHEN** `cd api-server && npm run build`를 실행할 때
+- **WHEN** `cd server/api-server && npm run build`를 실행할 때
 - **THEN** chat-server 없이 독립적으로 빌드가 성공해야 한다
 
 #### Scenario: api-server와 chat-server 간 직접 의존 금지
@@ -54,9 +54,9 @@ chat-server와 api-server는 서로 직접 의존하지 않으며, MongoDB `mess
 각 서버(chat-server, api-server)는 독립적으로 실행 가능한 Node.js 애플리케이션으로 패키징되어야 한다(SHALL).
 
 #### Scenario: chat-server 독립 실행
-- **WHEN** `node chat-server/dist/main.js`를 실행할 때
+- **WHEN** `node server/chat-server/dist/main.js`를 실행할 때
 - **THEN** chat-server가 정상 구동되어 REST API와 STOMP WebSocket에 응답해야 한다
 
 #### Scenario: api-server 독립 실행
-- **WHEN** `node api-server/dist/main.js`를 실행할 때
+- **WHEN** `node server/api-server/dist/main.js`를 실행할 때
 - **THEN** api-server가 정상 구동되어 메시지 이력 REST API에 응답해야 한다

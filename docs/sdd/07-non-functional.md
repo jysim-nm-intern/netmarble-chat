@@ -129,10 +129,10 @@ cd chat-server && npm run test:e2e
 ### 보고서 위치
 
 ```
-chat-server/coverage/lcov-report/index.html   ← HTML (브라우저 확인)
-chat-server/coverage/lcov.info                ← LCOV (CI 연동용)
-api-server/coverage/lcov-report/index.html    ← HTML (브라우저 확인)
-api-server/coverage/lcov.info                 ← LCOV (CI 연동용)
+server/chat-server/coverage/lcov-report/index.html   ← HTML (브라우저 확인)
+server/chat-server/coverage/lcov.info                ← LCOV (CI 연동용)
+server/api-server/coverage/lcov-report/index.html    ← HTML (브라우저 확인)
+server/api-server/coverage/lcov.info                 ← LCOV (CI 연동용)
 ```
 
 ### 테스트 분류 정책

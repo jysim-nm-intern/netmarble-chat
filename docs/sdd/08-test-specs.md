@@ -35,10 +35,10 @@
 
 ```bash
 # 커버리지 보고서 생성
-cd chat-server && npm test -- --coverage
+cd server/chat-server && npm test -- --coverage
 
 # 보고서 확인
-chat-server/coverage/lcov-report/index.html
+server/chat-server/coverage/lcov-report/index.html
 ```
 
 ---
@@ -336,10 +336,10 @@ describe('Login 컴포넌트', () => {
 
 ```bash
 # 1. 테스트 실행 + 커버리지 보고서 생성
-cd chat-server && npm test -- --coverage
+cd server/chat-server && npm test -- --coverage
 
 # 2. 보고서 열기
-#    chat-server/coverage/lcov-report/index.html
+#    server/chat-server/coverage/lcov-report/index.html
 #    → 디렉토리별 라인/브랜치 커버리지 확인 가능
 
 # 3. 최소 기준 검증 (jest.config.ts의 coverageThreshold)
@@ -350,6 +350,6 @@ cd chat-server && npm test -- --coverage
 
 | 파일 | 용도 |
 |------|------|
-| `chat-server/coverage/lcov-report/index.html` | 브라우저에서 직관적으로 확인 |
-| `chat-server/coverage/lcov.info` | CI/CD 파이프라인 연동 |
-| `api-server/coverage/lcov-report/index.html` | api-server 커버리지 확인 |
+| `server/chat-server/coverage/lcov-report/index.html` | 브라우저에서 직관적으로 확인 |
+| `server/chat-server/coverage/lcov.info` | CI/CD 파이프라인 연동 |
+| `server/api-server/coverage/lcov-report/index.html` | api-server 커버리지 확인 |

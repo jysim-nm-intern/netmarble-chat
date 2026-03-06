@@ -140,13 +140,13 @@ npm test
 #### 백엔드 테스트 커버리지 (Jest)
 
 ```bash
-cd chat-server
+cd server/chat-server
 npm test -- --coverage
 ```
 
 리포트 위치:
 
-- `chat-server/coverage/lcov-report/index.html`
+- `server/chat-server/coverage/lcov-report/index.html`
 
 #### E2E 테스트 (Playwright)
 
