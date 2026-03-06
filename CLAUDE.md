@@ -5,7 +5,7 @@
 ## 1. Context Hierarchy (가이드라인 우선순위)
 
 1. **SDD 명세 (최우선):** `docs/sdd-specification.md` 및 `docs/sdd/` 하위 문서
-2. **Local 규칙:** `server/.claude/rules/`, `client/.claude/rules/`
+2. **Local 규칙:** `server/chat-server/.claude/rules/`, `client/.claude/rules/`
 3. **Index:** 본 파일 (`CLAUDE.md`)
 
 ---
@@ -47,10 +47,10 @@
   아래 4가지 테스트를 모두 실행하고 결과(통과 수, 실패 수)를 기록합니다.
   ```
   # Server 단위 테스트
-  cd server && ./gradlew test
+  cd server/chat-server && npm test
 
   # Server 통합 테스트 (MySQL 필요)
-  cd server && ./gradlew integrationTest
+  cd server/chat-server && npm run test:e2e
 
   # Client 단위 테스트
   cd client && npm test
@@ -104,13 +104,13 @@
 
     > PR 생성 전 로컬에서 모두 실행 후 결과를 기록합니다.
 
-    ### Server 단위 테스트 (`./gradlew test`)
+    ### Server 단위 테스트 (`npm test`)
     - [x] 통과
-    - 실행 결과: `Tests run: N, Failures: 0, Errors: 0`
+    - 실행 결과: `Tests: N passed, 0 failed`
 
-    ### Server 통합 테스트 (`./gradlew integrationTest`, MySQL)
+    ### Server 통합 테스트 (`npm run test:e2e`, MySQL)
     - [x] 통과 / 해당 없음
-    - 실행 결과: `Tests run: N, Failures: 0, Errors: 0`
+    - 실행 결과: `Tests: N passed, 0 failed`
 
     ### Client 단위 테스트 (`npm test`)
     - [x] 통과 / 해당 없음
@@ -133,17 +133,17 @@
     - [x/] **REST/STOMP 역할 분리** — 실시간 메시지는 STOMP(`/app`), 조회/등록은 REST
     - [x/] **Entity 직접 반환 금지** — API 응답은 반드시 DTO 사용
     - [x/] **인수 조건(AC) 충족** — 관련 SPEC의 모든 AC 항목 구현 여부 확인
-    - [x/] **예외 처리** — GlobalExceptionHandler를 통한 일관된 오류 응답
+    - [x/] **예외 처리** — GlobalExceptionFilter를 통한 일관된 오류 응답
     - [x/] **테스트 커버리지** — 변경된 로직에 대한 단위 테스트 존재
     ```
 - **동작:** 코드 수정 전 기존 구조를 분석하고, 대규모 변경 시 사용자에게 계획을 먼저 공유합니다.
 - **테스트 실행 (필수):** 기능 구현, 리팩토링, 코드 변경이 완료되면 변경된 부분과 관련된 단위 테스트(Unit Test) 및 E2E 테스트를 반드시 실행하고 결과를 확인합니다. 테스트가 실패하면 수정 후 재실행하여 모든 테스트가 통과할 때까지 작업을 완료로 간주하지 않습니다.
 
-### Backend (Spring Boot)
+### Backend (NestJS)
 
-- **규칙:** `server/.claude/rules/` 참조
-- **핵심 스택:** Java 17, Spring Boot 3.x, JPA, MySQL, STOMP
-- **특이사항:** `SimpleBroker` 사용, `/topic` 구독 · `/app` 발행 경로.
+- **규칙:** `server/chat-server/.claude/rules/` 참조
+- **핵심 스택:** Node.js 20, NestJS 10.x, TypeORM, Mongoose, MySQL, MongoDB, Redis, STOMP
+- **특이사항:** 인메모리 STOMP 브로커 (기본) / RabbitMQ (scale 모드), `/topic` 구독 · `/app` 발행 경로.
 
 ### Frontend (React)
 

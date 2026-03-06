@@ -236,7 +236,7 @@ Authorization: Bearer <AccessToken>
 |------|-----|
 | **엔드포인트** | `http://localhost:8080/ws-stomp` |
 | **Fallback** | SockJS 지원 |
-| **브로커** | Spring Boot 내장 SimpleBroker |
+| **브로커** | 인메모리 STOMP 브로커 (기본) / RabbitMQ (scale 모드) |
 | **구독 prefix** | `/topic` |
 | **발행 prefix** | `/app` |
 

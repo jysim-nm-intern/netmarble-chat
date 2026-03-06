@@ -46,17 +46,17 @@ USE netmarble_chat;
 source /Users/simzard/projects/netmarble-chat/server/src/main/resources/schema.sql
 ```
 
-### 방법 3: Spring Boot 자동 생성 사용
+### 방법 3: NestJS TypeORM 자동 생성 사용
 
-Spring Boot의 `spring.jpa.hibernate.ddl-auto=update` 설정으로 자동으로 테이블이 생성됩니다.
+TypeORM의 `synchronize: true` 설정 (개발 환경)으로 자동으로 테이블이 생성됩니다.
 
 ```bash
 # 1. 데이터베이스만 먼저 생성
 mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS netmarble_chat DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;"
 
-# 2. Spring Boot 애플리케이션 실행
-cd /Users/simzard/projects/netmarble-chat/server
-mvn spring-boot:run
+# 2. NestJS 애플리케이션 실행
+cd server/chat-server
+npm run start:dev
 ```
 
 ## 3. 데이터베이스 확인
@@ -168,8 +168,8 @@ GRANT ALL PRIVILEGES ON netmarble_chat.* TO 'netmarble_chat_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-그리고 application.properties 수정:
-```properties
-spring.datasource.username=netmarble_chat_user
-spring.datasource.password=secure_password
+그리고 환경변수 또는 `.env` 파일 수정:
+```env
+DB_USERNAME=netmarble_chat_user
+DB_PASSWORD=secure_password
 ```

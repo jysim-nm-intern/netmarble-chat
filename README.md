@@ -72,10 +72,10 @@ docker compose down -v
 
 ##  기술 스택
 - Frontend: React.js, Tailwind CSS, SockJS, StompJS
-- Backend: Java 17, Spring Boot 3.x, Spring Data JPA, Gradle
-- Database: MySQL (Infrastructure Layer에서 교체 가능)
-- Messaging: Spring WebSocket STOMP (Messaging Port를 통해 추상화)
-- AI Tool: GitHub Copilot (Code Generation & Refactoring)
+- Backend: Node.js 20, NestJS 10.x, TypeORM, Mongoose, Jest
+- Database: MySQL + MongoDB + Redis (Infrastructure Layer에서 교체 가능)
+- Messaging: STOMP over WebSocket (인메모리 브로커 / RabbitMQ scale 모드)
+- AI Tool: Claude Code, GitHub Copilot (Code Generation & Refactoring)
 
 ## 주요 기능
 - 채팅 사이트 접속 시 닉네임 입력
@@ -101,7 +101,7 @@ docker compose down -v
 
 내부적으로 다음 순서로 실행됩니다.
 1. MySQL 컨테이너 준비
-2. 백엔드 단위 테스트 (Spring Boot, Docker 내부)
+2. 백엔드 단위 테스트 (NestJS Jest, Docker 내부)
 3. 프론트엔드 단위 테스트 (Vitest, Docker 내부)
 4. E2E 테스트 (Playwright, 호스트 Node.js 사용)
 
@@ -126,27 +126,27 @@ cd client
 npm run test:watch
 ```
 
-#### 백엔드 단위 테스트 (JUnit5 + Spring Boot Test)
+#### 백엔드 단위 테스트 (Jest + @nestjs/testing)
 
 ```bash
-# Docker로 실행 (MySQL 연동)
+# Docker로 실행
 docker compose --profile test run --rm server-test
 
 # 로컬에서 직접 실행
-cd server
-./gradlew test
+cd chat-server
+npm test
 ```
 
-#### 백엔드 테스트 커버리지 (JaCoCo)
+#### 백엔드 테스트 커버리지 (Jest)
 
 ```bash
-cd server
-./gradlew test jacocoTestReport
+cd server/chat-server
+npm test -- --coverage
 ```
 
 리포트 위치:
 
-- `server/build/reports/jacoco/test/html/index.html`
+- `server/chat-server/coverage/lcov-report/index.html`
 
 #### E2E 테스트 (Playwright)
 

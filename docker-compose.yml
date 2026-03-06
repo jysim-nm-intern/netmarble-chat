@@ -15,7 +15,7 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./chat-server/src/main/resources/schema-mysql.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./server/chat-server-spring/src/main/resources/schema-mysql.sql:/docker-entrypoint-initdb.d/schema.sql
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
@@ -72,29 +72,32 @@ services:
       start_period: 30s
 
   # ─────────────────────────────────────────────
-  # chat-server 단일 인스턴스 (기본 프로파일)
-  # docker compose up 으로 바로 기동, scale 모드와 분리
+  # chat-server 단일 인스턴스 (NestJS, 기본 프로파일)
   # ─────────────────────────────────────────────
   server:
     build:
-      context: ./chat-server
+      context: ./server/chat-server
       dockerfile: Dockerfile
     container_name: netmarble-chat-server
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
+      NODE_ENV: production
+      PORT: 8080
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      DB_NAME: netmarble_chat
       MONGODB_URI: mongodb://mongodb:27017/netmarble_chat
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      FILE_UPLOAD_DIR: /data/uploads
     ports:
       - "8080:8080"
-    volumes:
-      - ./server.log:/app/server.log
-      - upload_data:/data/uploads
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     depends_on:
       mysql:
         condition: service_healthy
@@ -104,17 +107,25 @@ services:
         condition: service_healthy
 
   # ─────────────────────────────────────────────
-  # api-server (REST API + MongoDB 읽기 + MySQL 조회)
+  # api-server (NestJS, REST API + MongoDB 읽기)
   # ─────────────────────────────────────────────
   api-server:
     build:
-      context: ./api-server
+      context: ./server/api-server
       dockerfile: Dockerfile
     container_name: netmarble-chat-api-server
     environment:
+      NODE_ENV: production
+      PORT: 8081
       MONGODB_URI: mongodb://mongodb:27017/netmarble_chat
     ports:
       - "8081:8081"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     depends_on:
       mongodb:
         condition: service_healthy
@@ -156,23 +167,23 @@ services:
       - server
 
   # ─────────────────────────────────────────────
-  # chat-server 다중 인스턴스 (profile: scale)
+  # chat-server 다중 인스턴스 (NestJS, profile: scale)
   # ─────────────────────────────────────────────
   chat-server-1:
     build:
-      context: ./chat-server
+      context: ./server/chat-server
       dockerfile: Dockerfile
     container_name: netmarble-chat-server-1
     profiles: ["scale"]
     environment:
-      SPRING_PROFILES_ACTIVE: docker,scale
+      NODE_ENV: production
+      PORT: 8080
       INSTANCE_ID: chat-server-1
-      JAVA_OPTS: "-Xms512m -Xmx2g"
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
-      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 50
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      DB_NAME: netmarble_chat
       MONGODB_URI: mongodb://mongodb:27017/netmarble_chat
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -180,15 +191,12 @@ services:
       RABBITMQ_STOMP_PORT: 61613
       RABBITMQ_USER: guest
       RABBITMQ_PASS: guest
-      FILE_UPLOAD_DIR: /data/uploads
-    volumes:
-      - upload_data:/data/uploads
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 15s
     depends_on:
       mysql:
         condition: service_healthy
@@ -201,19 +209,19 @@ services:
 
   chat-server-2:
     build:
-      context: ./chat-server
+      context: ./server/chat-server
       dockerfile: Dockerfile
     container_name: netmarble-chat-server-2
     profiles: ["scale"]
     environment:
-      SPRING_PROFILES_ACTIVE: docker,scale
+      NODE_ENV: production
+      PORT: 8080
       INSTANCE_ID: chat-server-2
-      JAVA_OPTS: "-Xms512m -Xmx2g"
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
-      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 50
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      DB_NAME: netmarble_chat
       MONGODB_URI: mongodb://mongodb:27017/netmarble_chat
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -221,15 +229,12 @@ services:
       RABBITMQ_STOMP_PORT: 61613
       RABBITMQ_USER: guest
       RABBITMQ_PASS: guest
-      FILE_UPLOAD_DIR: /data/uploads
-    volumes:
-      - upload_data:/data/uploads
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 15s
     depends_on:
       mysql:
         condition: service_healthy
@@ -300,23 +305,14 @@ services:
   # ─────────────────────────────────────────────
   server-test:
     build:
-      context: ./chat-server
+      context: ./server/chat-server
       dockerfile: Dockerfile
       target: builder
     profiles: ["test"]
     working_dir: /app
     environment:
-      SPRING_PROFILES_ACTIVE: ""
-      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/netmarble_chat_test?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&characterEncoding=UTF-8"
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root
-      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
-      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQLDialect
-      SPRING_H2_CONSOLE_ENABLED: "false"
-    depends_on:
-      mysql:
-        condition: service_healthy
-    command: ["./gradlew", "test", "--no-daemon"]
+      NODE_ENV: test
+    command: ["npm", "test"]
 
   client-test:
     build:
@@ -326,21 +322,22 @@ services:
     command: ["npm", "test"]
 
   # ─────────────────────────────────────────────
-  # 부하테스트 서버 (profile: load)
+  # 부하테스트 서버 (NestJS, profile: load)
   # ─────────────────────────────────────────────
   server-load:
     build:
-      context: ./chat-server
+      context: ./server/chat-server
       dockerfile: Dockerfile
     container_name: netmarble-chat-server-load
     profiles: ["load"]
     environment:
-      SPRING_PROFILES_ACTIVE: load
-      JAVA_OPTS: "-Xms512m -Xmx2g -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
+      NODE_ENV: production
+      PORT: 8080
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      DB_NAME: netmarble_chat
       MONGODB_URI: mongodb://mongodb:27017/netmarble_chat
       REDIS_HOST: redis
       REDIS_PORT: 6379

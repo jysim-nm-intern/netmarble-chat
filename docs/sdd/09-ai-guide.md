@@ -39,21 +39,21 @@
 --- 명세 끝 ---
 
 구현 조건:
-- 백엔드 구현 순서: Domain Entity → Repository → DTO → Service → Controller
-- 코드 컨벤션: server/.claude/rules/code_convention.md 준수
-  - DTO는 Java Record 사용
-  - 의존성 주입은 @RequiredArgsConstructor
-  - 예외는 GlobalExceptionHandler에서 처리
-- 테스트: server/.claude/rules/test_convention.md 준수
-  - BDD 패턴, @DisplayName 한국어
+- 백엔드 구현 순서: Domain Entity → Repository Interface → DTO → Service → Controller
+- 코드 컨벤션: server/chat-server/.claude/rules/ 준수
+  - DTO는 TypeScript class + class-validator 데코레이터 사용
+  - 의존성 주입은 NestJS @Injectable + 생성자 주입
+  - 예외는 GlobalExceptionFilter에서 처리
+- 테스트: Jest + @nestjs/testing 준수
+  - BDD 패턴, describe/it 블록명 한국어
   - 핵심 비즈니스 로직(Domain, Application Service)은 단위 테스트를 반드시 포함한다
   - 정상 케이스와 예외 케이스(잘못된 입력, 존재하지 않는 엔티티)를 모두 테스트한다
-  - @SpringBootTest를 사용하는 통합 테스트에는 @Tag("integration")을 추가한다
+  - 통합 테스트(실제 DB 필요)는 *.e2e-spec.ts 파일로 분리한다
 - 커버리지 기준 (SPEC-NFR-005 참조):
   - 도메인 모델: 80% 이상
   - 애플리케이션 서비스: 70% 이상
-  - 구현 후 ./gradlew test jacocoTestReport 실행하여 기준 충족 확인
-- 금지 사항: server/.claude/rules/anti_pattern.md 참조
+  - 구현 후 npm test -- --coverage 실행하여 기준 충족 확인
+- 금지 사항: server/chat-server/.claude/rules/anti_pattern.md 참조
 ```
 
 ### 버그 수정 요청
@@ -66,7 +66,7 @@
   - 기대: 참여자 2명일 때 상대가 읽으면 unreadCount가 0으로 사라진다.
   - 실제: 상대가 읽어도 unreadCount가 사라지지 않는다.
 
-[관련 파일]: ReadStatusApplicationService.java, MessageList.jsx
+[관련 파일]: read-status-application.service.ts, MessageList.jsx
 ```
 
 ### 테스트 코드 생성 요청
@@ -80,16 +80,15 @@
 [테스트 대상 클래스]: MessageApplicationService
 
 구현 조건:
-- 도구: JUnit 5 + Mockito (@ExtendWith(MockitoExtension.class))
+- 도구: Jest + @nestjs/testing (Test.createTestingModule)
 - 패턴: // given / // when / // then
-- 메서드명: 한국어로 의도 명확하게 작성 (예: 키워드_포함_메시지_반환_최신순_정렬)
-- 클래스에 public 키워드 생략
+- it 블록명: 한국어로 의도 명확하게 작성 (예: '키워드 포함 메시지 반환 최신순 정렬')
 - 테스트 대상 계층별 접근:
   - Domain Model: 외부 Mock 없이 직접 생성자 호출
-  - Application Service: @Mock + @InjectMocks 사용, 외부 의존성 모두 Mock 처리
-  - ID 설정이 필요한 경우 Reflection 헬퍼(setId 메서드) 사용
-- @SpringBootTest 사용 시 반드시 @Tag("integration") 추가
-- 구현 완료 후 ./gradlew test jacocoTestReport 실행하여 커버리지 확인
+  - Application Service: jest.fn()으로 의존성 Mock 처리, Test.createTestingModule로 DI 구성
+  - ID 설정이 필요한 경우 (entity as any).id = N 사용
+- 통합 테스트(실제 DB)는 *.e2e-spec.ts 파일로 분리
+- 구현 완료 후 npm test -- --coverage 실행하여 커버리지 확인
 ```
 
 ---
@@ -239,14 +238,14 @@ AI가 생성한 코드를 검토할 때 다음 항목을 확인한다.
 
 - [ ] Controller → Service → Repository 순서로 계층이 분리되었는가?
 - [ ] Controller에서 Repository를 직접 호출하지 않는가?
-- [ ] JPA Entity를 API 응답으로 직접 반환하지 않는가? (DTO 변환 확인)
-- [ ] 의존성 주입이 `@RequiredArgsConstructor + final`로 되어 있는가?
+- [ ] TypeORM Entity를 API 응답으로 직접 반환하지 않는가? (DTO 변환 확인)
+- [ ] 의존성 주입이 NestJS `@Injectable` + 생성자 주입으로 되어 있는가?
 
 ### 예외 처리
 
-- [ ] 잘못된 입력(4xx)이 `GlobalExceptionHandler`에서 처리되는가?
+- [ ] 잘못된 입력(4xx)이 `GlobalExceptionFilter`에서 처리되는가?
 - [ ] 오류 응답 형식이 `{ success, data, error }` Wrapper를 따르는가?
-- [ ] `System.out.println` 대신 `log.info()` / `log.error()`를 사용하는가?
+- [ ] `console.log` 대신 NestJS `Logger`를 사용하는가?
 
 ### 테스트 코드 및 커버리지
 
@@ -255,11 +254,11 @@ AI가 생성한 코드를 검토할 때 다음 항목을 확인한다.
 - [ ] 정상 케이스와 예외 케이스(잘못된 입력, 존재하지 않는 엔티티)가 모두 커버되는가?
 - [ ] Domain Model의 모든 도메인 로직(유효성 검증, 상태 변경)이 테스트되는가?
 - [ ] Application Service의 주요 유즈케이스(성공/실패 분기)가 테스트되는가?
-- [ ] `@SpringBootTest`를 사용하는 통합 테스트에 `@Tag("integration")`이 추가되었는가?
-- [ ] `./gradlew test jacocoTestReport` 실행 후 목표 커버리지(SPEC-NFR-005)를 충족하는가?
-  - `domain.model`: 80% 이상
-  - `domain.service`: 90% 이상
-  - `application.service`: 70% 이상
+- [ ] 통합 테스트(실제 DB)가 `*.e2e-spec.ts` 파일로 분리되었는가?
+- [ ] `npm test -- --coverage` 실행 후 목표 커버리지(SPEC-NFR-005)를 충족하는가?
+  - `src/domain/model/`: 80% 이상
+  - `src/domain/service/`: 90% 이상
+  - `src/application/service/`: 70% 이상
 
 ---
 
@@ -316,7 +315,7 @@ AI가 생성한 코드를 검토할 때 다음 항목을 확인한다.
 | 카테고리 | 검토 내용 |
 |---------|----------|
 | **인증/인가** | 인증 없이 접근 가능한 엔드포인트, 권한 우회 가능성 |
-| **SQL 인젝션** | JPA Native Query 또는 문자열 조합 쿼리 취약점 |
+| **SQL 인젝션** | TypeORM Raw Query 또는 문자열 조합 쿼리 취약점 |
 | **XSS** | 사용자 입력값의 HTML 이스케이프 미처리 |
 | **파일 업로드** | 파일 타입·사이즈 검증 누락, 경로 조작(Path Traversal) |
 | **민감 정보 노출** | API 응답에 패스워드·토큰·내부 스택트레이스 포함 여부 |
@@ -401,8 +400,8 @@ GitHub Repository → Settings → Secrets and variables → Actions
 
 ```
 ✅ 포함 (리뷰 대상)
-  server/src/main/java/
-  server/src/test/java/
+  server/chat-server/src/
+  server/api-server/src/
   client/src/components/
   client/src/api/
   client/src/store/
@@ -411,8 +410,8 @@ GitHub Repository → Settings → Secrets and variables → Actions
 ❌ 제외 (인프라·설정 파일)
   .github/
   *.yml / *.yaml
-  *.properties
-  build.gradle / package.json
+  package.json / package-lock.json
+  tsconfig.json / jest.config.ts
   vite.config.*
 ```
 
@@ -483,11 +482,11 @@ PR 생성 전 (로컬)                PR 생성 후 (GitHub Actions)
 3. 코드 구현 (Domain → Repository → DTO → Service → Controller)
        ↓
 4. 테스트 실행 및 커버리지 확인
-   $ cd server && ./gradlew test jacocoTestReport
-   → server/build/reports/jacoco/test/html/index.html 확인
+   $ cd server/chat-server && npm test -- --coverage
+   → server/chat-server/coverage/lcov-report/index.html 확인
        ↓
 5. 커버리지 기준 미달 시 테스트 보완 (SPEC-NFR-005 참조)
-   - domain.model: 80% / domain.service: 90% / application.service: 70%
+   - src/domain/model/: 80% / src/domain/service/: 90% / src/application/service/: 70%
        ↓
 6. 08-test-specs.md의 SPEC → 테스트 ID 매핑 테이블 업데이트
 ```
