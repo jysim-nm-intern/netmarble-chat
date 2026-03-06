@@ -64,7 +64,7 @@ jobs:
         if: always() && steps.check-dir.outputs.exists == 'true'
         with:
           name: api-server-coverage-report
-          path: api-server/coverage/
+          path: coverage/
           retention-days: 7
 
   # ─── 통합 테스트 (MongoDB 서비스 컨테이너) ────────────────────────────────────

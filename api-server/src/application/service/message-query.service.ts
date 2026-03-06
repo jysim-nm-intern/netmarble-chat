@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { MessageMongoRepository } from '../../infrastructure/mongo/repository/message-mongo.repository.js';
 import { MessageResponse } from '../dto/message-response.dto.js';
@@ -48,6 +48,9 @@ export class MessageQueryService {
         safeLimit,
       );
     } else {
+      if (!Types.ObjectId.isValid(cursor)) {
+        throw new BadRequestException('유효하지 않은 커서입니다: ' + cursor);
+      }
       const cursorId = new Types.ObjectId(cursor);
       if (direction === Direction.BEFORE) {
         docs = await this.messageMongoRepository.findByRoomIdBeforeCursor(
