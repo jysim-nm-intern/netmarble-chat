@@ -45,20 +45,6 @@ export class UserController {
     return this.userApplicationService.createUser(request);
   }
 
-  @Get(':id')
-  async getUserById(
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<UserResponse> {
-    return this.userApplicationService.getUserById(id);
-  }
-
-  @Get('nickname/:nickname')
-  async getUserByNickname(
-    @Param('nickname') nickname: string,
-  ): Promise<UserResponse> {
-    return this.userApplicationService.getUserByNickname(nickname);
-  }
-
   @Get('active')
   async getActiveUsers(): Promise<UserResponse[]> {
     return this.userApplicationService.getActiveUsers();
@@ -71,6 +57,20 @@ export class UserController {
     const available =
       await this.userApplicationService.isNicknameAvailable(nickname);
     return { available };
+  }
+
+  @Get('nickname/:nickname')
+  async getUserByNickname(
+    @Param('nickname') nickname: string,
+  ): Promise<UserResponse> {
+    return this.userApplicationService.getUserByNickname(nickname);
+  }
+
+  @Get(':id')
+  async getUserById(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<UserResponse> {
+    return this.userApplicationService.getUserById(id);
   }
 
   @Put(':id/activity')

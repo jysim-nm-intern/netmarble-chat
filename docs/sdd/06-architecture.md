@@ -34,30 +34,33 @@
 ## 백엔드 계층 구조 (Layered Architecture)
 
 ```
-┌──────────────────────────────────────────────┐
-│  presentation/                               │  ← HTTP 요청/응답 처리
-│    controller/   (REST Controller)           │     WebSocket 메시지 매핑
-│    exception/    (GlobalExceptionHandler)    │     DTO 입출력
-├──────────────────────────────────────────────┤
-│              ↓ (Application DTO)             │
-├──────────────────────────────────────────────┤
-│  application/                                │  ← 유스케이스 조율
-│    service/      (ApplicationService)        │     트랜잭션 경계
-│    dto/          (Request/Response Record)   │     도메인 서비스 호출
-├──────────────────────────────────────────────┤
-│              ↓ (Domain Model)                │
-├──────────────────────────────────────────────┤
-│  domain/                                     │  ← 핵심 비즈니스 로직
-│    model/        (Entity)                    │     외부 기술에 무의존
-│    repository/   (Interface)                 │
-│    service/      (DomainService)             │
-├──────────────────────────────────────────────┤
-│              ↓ (Interface 구현)              │
-├──────────────────────────────────────────────┤
-│  infrastructure/                             │  ← 외부 기술 구현체
-│    persistence/  (JPA Repository 구현)       │
-│    config/       (WebSocketConfig, WebConfig)│
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  presentation/                                   │  ← HTTP 요청/응답 처리
+│    controller/   (NestJS @Controller)            │     STOMP WebSocket Gateway
+│    gateway/      (WebSocket Gateway)             │     DTO 입출력
+│    filter/       (GlobalExceptionFilter)         │
+├──────────────────────────────────────────────────┤
+│              ↓ (Application DTO)                 │
+├──────────────────────────────────────────────────┤
+│  application/                                    │  ← 유스케이스 조율
+│    service/      (@Injectable ApplicationService)│     트랜잭션 경계
+│    dto/          (Request/Response class)         │     도메인 서비스 호출
+├──────────────────────────────────────────────────┤
+│              ↓ (Domain Model)                    │
+├──────────────────────────────────────────────────┤
+│  domain/                                         │  ← 핵심 비즈니스 로직
+│    model/        (순수 TypeScript Entity)         │     외부 기술에 무의존
+│    repository/   (Interface)                     │
+│    service/      (DomainService)                 │
+├──────────────────────────────────────────────────┤
+│              ↓ (Interface 구현)                   │
+├──────────────────────────────────────────────────┤
+│  infrastructure/                                 │  ← 외부 기술 구현체
+│    persistence/  (TypeORM Repository 구현)        │
+│    mongo/        (Mongoose Document/Repository)  │
+│    redis/        (Redis Service)                 │
+│    config/       (TypeORM, Mongoose, Redis, WS)  │
+└──────────────────────────────────────────────────┘
 ```
 
 ### 계층 간 의존 규칙
@@ -65,65 +68,114 @@
 | 규칙 | 설명 |
 |------|------|
 | **단방향 의존** | 상위 계층은 하위 계층을 참조 가능. 역방향 불가. |
-| **도메인 독립성** | Domain 계층은 Spring, JPA, STOMP 등 외부 기술에 직접 의존하지 않는다. |
+| **도메인 독립성** | Domain 계층은 NestJS, TypeORM, Mongoose 등 외부 기술에 직접 의존하지 않는다. |
 | **Controller → Repository 직접 호출 금지** | 모든 비즈니스 로직은 Service 계층을 거쳐야 한다. |
 | **Entity 직접 반환 금지** | Controller 응답 시 반드시 DTO로 변환한다. |
 
 ---
 
-## 패키지 구조
+## 패키지 구조 (NestJS — chat-server)
 
 ```
-com.netmarble.chat
+chat-server/src/
+├── main.ts                              ← NestJS 부트스트랩
+├── app.module.ts                        ← 루트 모듈
+│
 ├── presentation/
 │   ├── controller/
-│   │   ├── UserController.java
-│   │   ├── ChatRoomController.java
-│   │   ├── ChatController.java         ← 메시지 이력/검색 REST
-│   │   ├── WebSocketMessageController.java ← STOMP @MessageMapping
-│   │   ├── ReadStatusController.java
-│   │   └── HealthController.java
-│   └── exception/
-│       ├── GlobalExceptionHandler.java
-│       └── ErrorResponse.java
+│   │   ├── user.controller.ts           ← POST/GET /api/users
+│   │   ├── chat-room.controller.ts      ← POST/GET /api/chat-rooms, join, leave
+│   │   ├── chat.controller.ts           ← 메시지 검색, 미읽음 카운트
+│   │   ├── message.controller.ts        ← GET /api/messages/chatroom/{id}
+│   │   ├── read-status.controller.ts    ← 읽음 상태 REST
+│   │   └── health.controller.ts         ← GET /health
+│   ├── gateway/
+│   │   └── websocket-message.gateway.ts ← STOMP /app/chat.message, chat.read
+│   └── filter/
+│       └── global-exception.filter.ts   ← @Catch() ExceptionFilter
 │
 ├── application/
 │   ├── service/
-│   │   ├── UserApplicationService.java
-│   │   ├── ChatRoomApplicationService.java
-│   │   ├── MessageApplicationService.java
-│   │   └── ReadStatusApplicationService.java
+│   │   ├── user-application.service.ts
+│   │   ├── chat-room-application.service.ts
+│   │   ├── message-application.service.ts
+│   │   └── read-status-application.service.ts
 │   └── dto/
-│       ├── CreateUserRequest.java
-│       ├── UserResponse.java
-│       ├── SendMessageRequest.java
-│       ├── MessageResponse.java
+│       ├── create-user.request.ts
+│       ├── user.response.ts
+│       ├── send-message.request.ts
+│       ├── message.response.ts
 │       └── ...
 │
 ├── domain/
 │   ├── model/
-│   │   ├── User.java
-│   │   ├── ChatRoom.java
-│   │   ├── ChatRoomMember.java
-│   │   ├── Message.java
-│   │   └── ReadStatus.java
+│   │   ├── user.entity.ts               ← 순수 TypeScript (외부 기술 무의존)
+│   │   ├── chat-room.entity.ts
+│   │   ├── chat-room-member.entity.ts
+│   │   ├── message.entity.ts
+│   │   └── attachment.entity.ts
 │   ├── repository/
-│   │   ├── UserRepository.java         ← Interface
-│   │   ├── ChatRoomRepository.java     ← Interface
-│   │   ├── MessageRepository.java      ← Interface
-│   │   └── ReadStatusRepository.java   ← Interface
+│   │   ├── user.repository.interface.ts
+│   │   ├── chat-room.repository.interface.ts
+│   │   ├── chat-room-member.repository.interface.ts
+│   │   ├── message.repository.interface.ts
+│   │   └── attachment.repository.interface.ts
 │   └── service/
-│       └── UserDomainService.java
+│       └── user-domain.service.ts
 │
 └── infrastructure/
     ├── persistence/
-    │   ├── JpaUserRepository.java
-    │   ├── JpaChatRoomRepository.java
-    │   ├── JpaMessageRepository.java
-    │   └── JpaReadStatusRepository.java
+    │   ├── entity/                       ← TypeORM @Entity (인프라 매핑 전용)
+    │   │   ├── user.orm-entity.ts
+    │   │   ├── chat-room.orm-entity.ts
+    │   │   ├── chat-room-member.orm-entity.ts
+    │   │   ├── message.orm-entity.ts
+    │   │   └── attachment.orm-entity.ts
+    │   └── repository/
+    │       ├── typeorm-user.repository.ts
+    │       ├── typeorm-chat-room.repository.ts
+    │       ├── typeorm-chat-room-member.repository.ts
+    │       ├── typeorm-message.repository.ts
+    │       └── typeorm-attachment.repository.ts
+    ├── mongo/
+    │   ├── chat-message.document.ts      ← Mongoose @Schema
+    │   └── chat-message-mongo.repository.ts
+    ├── redis/
+    │   └── read-status-redis.service.ts
     └── config/
-        ├── WebSocketConfig.java
-        └── WebConfig.java
+        ├── typeorm.config.ts
+        ├── mongo.config.ts
+        ├── redis.config.ts
+        └── websocket.config.ts
+```
+
+## 패키지 구조 (NestJS — api-server)
+
+```
+api-server/src/
+├── main.ts                              ← NestJS 부트스트랩 (포트 8081)
+├── app.module.ts                        ← 루트 모듈
+│
+├── presentation/
+│   └── controller/
+│       ├── message-history.controller.ts ← cursor-based 메시지 조회
+│       └── health.controller.ts
+│
+├── application/
+│   ├── service/
+│   │   └── message-query.service.ts     ← MongoDB 조회 + 커서 페이징
+│   └── dto/
+│       ├── message.response.ts
+│       └── cursor-page.response.ts
+│
+└── infrastructure/
+    └── mongo/
+        ├── document/
+        │   ├── message.document.ts      ← Mongoose @Schema
+        │   └── read-status.document.ts
+        └── repository/
+            ├── message-mongo.repository.ts
+            └── read-status-mongo.repository.ts
 ```
 
 ---
@@ -190,37 +242,34 @@ src/services/
 
 도메인 비즈니스 로직은 인터페이스를 통해 인프라 기술과 분리된다.
 
-```java
-// domain/repository/MessageRepository.java (기술 독립적 인터페이스)
-public interface MessageRepository {
-    Message save(Message message);
-    List<Message> findByChatRoomIdOrderByCreatedAtDesc(Long roomId);
-    List<Message> searchByKeyword(Long roomId, String keyword);
+```typescript
+// domain/repository/message.repository.interface.ts (기술 독립적 인터페이스)
+export interface IMessageRepository {
+  save(message: Message): Promise<Message>;
+  findByChatRoomIdOrderByCreatedAtDesc(roomId: number): Promise<Message[]>;
+  searchByKeyword(roomId: number, keyword: string): Promise<Message[]>;
 }
 
-// infrastructure/persistence/JpaMessageRepository.java (JPA 구현체)
-@Repository
-public class JpaMessageRepository implements MessageRepository {
-    // JPA 구현...
+// infrastructure/persistence/repository/typeorm-message.repository.ts (TypeORM 구현체)
+@Injectable()
+export class TypeormMessageRepository implements IMessageRepository {
+  // TypeORM 구현...
 }
-
-// 향후 교체 가능:
-// class MongoMessageRepository implements MessageRepository { ... }
 ```
 
 **메시지 발행 추상화:**
-```java
-// 현재: StompMessageSender (SimpleBroker)
-// 향후: KafkaMessageSender 또는 RabbitMQMessageSender
+```typescript
+// 기본 모드: 인메모리 STOMP 브로커
+// scale 모드: RabbitMQ STOMP Broker Relay
 // → 도메인 코드 수정 없이 인프라 교체 가능
-interface MessageSender {
-    void send(String destination, Object payload);
+export interface IMessageSender {
+  send(destination: string, payload: any): void;
 }
 ```
 
 ---
 
-## Phase 2 — 2서버 분리 아키텍처 (SPEC-ARCH-002)
+## 2서버 분리 아키텍처 (SPEC-ARCH-002)
 
 ### 서버 분리 원칙
 
@@ -228,15 +277,15 @@ interface MessageSender {
 ┌────────────────────────────────────────────────────────────────────┐
 │                      2서버 하이브리드 아키텍처                        │
 │                                                                    │
-│   chat-server (포트 8080)                                          │
+│   chat-server (포트 8080, NestJS)                                  │
 │   ├── STOMP/WebSocket: 실시간 메시지 송수신, 읽음 처리, 입퇴장 이벤트  │
-│   ├── MySQL: 유저, 채팅방, 멤버십 (관계형 데이터)                     │
-│   ├── MongoDB: 메시지 비동기 쓰기 (@Async, 실패 시 MySQL만 유지)      │
-│   └── Redis: 읽음 상태 원자적 카운트                                 │
+│   ├── MySQL (TypeORM): 유저, 채팅방, 멤버십 (관계형 데이터)           │
+│   ├── MongoDB (Mongoose): 메시지 비동기 쓰기 (fire-and-forget)      │
+│   └── Redis (ioredis): 읽음 상태 원자적 카운트                      │
 │                                                                    │
-│   api-server (포트 8081)                                           │
+│   api-server (포트 8081, NestJS)                                   │
 │   ├── REST API: 메시지 이력 조회, cursor-based 페이징                │
-│   └── MongoDB: 메시지 읽기 전용                                     │
+│   └── MongoDB (Mongoose): 메시지 읽기 전용                          │
 │                                                                    │
 │   ❌ 금지: api-server에서 WebSocket/STOMP 사용                      │
 │   ❌ 금지: chat-server에서 메시지 이력 REST API 제공                  │
@@ -244,72 +293,12 @@ interface MessageSender {
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-### 프로젝트 구조
-
-```
-netmarble-chat/                   ← 루트 프로젝트
-│
-├── chat-server/                  ← 실시간 채팅 서버 (독립 Gradle 프로젝트)
-│   ├── build.gradle
-│   ├── settings.gradle
-│   ├── Dockerfile
-│   └── src/main/java/com/netmarble/chat/
-│       ├── ChatServerApplication.java
-│       ├── presentation/
-│       │   ├── controller/
-│       │   │   ├── UserController.java
-│       │   │   ├── ChatRoomController.java
-│       │   │   ├── ChatController.java        ← 메시지 검색 REST
-│       │   │   ├── WebSocketMessageController.java ← STOMP + MongoDB 비동기 쓰기
-│       │   │   ├── ReadStatusController.java
-│       │   │   └── HealthController.java
-│       │   └── exception/
-│       ├── application/
-│       │   ├── service/     ← ApplicationService (트랜잭션 경계)
-│       │   └── dto/         ← Request/Response DTO
-│       ├── domain/
-│       │   ├── model/       ← JPA Entity (User, ChatRoom, Message 등)
-│       │   ├── repository/  ← Interface
-│       │   └── service/     ← DomainService
-│       └── infrastructure/
-│           ├── persistence/  ← JPA Repository 구현
-│           ├── mongo/        ← ChatMessageDocument, ChatMessageMongoRepository
-│           ├── redis/        ← ReadStatusRedisService
-│           ├── security/     ← JWT (JwtTokenProvider, SecurityConfig)
-│           └── config/       ← WebSocketConfig, AsyncConfig, RedisConfig
-│
-├── api-server/                   ← REST API 서버 (독립 Gradle 프로젝트)
-│   ├── build.gradle
-│   ├── settings.gradle
-│   ├── Dockerfile
-│   └── src/main/java/com/netmarble/chat/
-│       ├── ApiServerApplication.java
-│       ├── presentation/
-│       │   └── controller/
-│       │       ├── MessageHistoryController.java ← cursor-based 메시지 조회
-│       │       └── HealthController.java
-│       ├── application/
-│       │   ├── service/mongo/
-│       │   │   └── MessageQueryService.java  ← MongoDB 조회 + 커서 페이징
-│       │   └── dto/
-│       │       ├── MessageResponse.java      ← domain 의존 없는 순수 DTO
-│       │       └── cursor/
-│       │           └── CursorPageResponse.java
-│       └── infrastructure/
-│           └── mongo/
-│               ├── document/    ← MessageDocument, ReadStatusDocument
-│               └── repository/  ← MessageMongoRepository, ReadStatusMongoRepository
-│
-├── client/                       ← 프론트엔드 (Vite + React)
-└── docker-compose.yml            ← 전체 서비스 오케스트레이션
-```
-
 ### 데이터베이스 역할 분담
 
 | DB | chat-server (쓰기) | api-server (읽기) | 저장 대상 |
 |----|-------------------|-------------------|-----------|
-| **MySQL** | ✅ JPA CRUD | ❌ 미사용 | 유저, 채팅방, 멤버십, 메시지(레거시) |
-| **MongoDB** | ✅ 비동기 쓰기 (@Async) | ✅ 조회 전용 | 메시지 (비정규화, cursor-based) |
+| **MySQL** | ✅ TypeORM CRUD | ❌ 미사용 | 유저, 채팅방, 멤버십, 메시지(레거시) |
+| **MongoDB** | ✅ 비동기 쓰기 (fire-and-forget) | ✅ 조회 전용 | 메시지 (비정규화, cursor-based) |
 | **Redis** | ✅ 읽음 상태 원자적 처리 | ❌ 미사용 | 읽음 카운트, JWT 블랙리스트 |
 
 ### Docker Compose 서비스 구성
@@ -327,18 +316,21 @@ netmarble-chat/                   ← 루트 프로젝트
 
 | 규칙 | 설명 |
 |------|------|
-| `domain` → `infrastructure` 금지 | 도메인이 JPA/MongoDB/Redis에 직접 의존 불가 |
+| `domain` → `infrastructure` 금지 | 도메인이 TypeORM/Mongoose/Redis에 직접 의존 불가 |
 | `controller` → `repository` 직접 호출 금지 | Controller는 Service만 호출 |
 | `api-server` ↔ `chat-server` 직접 의존 금지 | MongoDB `messages` 컬렉션을 통해서만 데이터 공유 |
 | Entity 직접 반환 금지 | Controller 응답 시 반드시 DTO로 변환 |
 
-### 기술 스택 (Phase 2)
+### 기술 스택
 
 | 구분 | 기술 |
 |------|------|
+| 런타임 | Node.js 20 LTS |
+| 프레임워크 | NestJS 10.x (TypeScript) |
 | 메시지 저장소 | MongoDB (cursor-based paging, 비정규화) |
-| 채팅방/유저 저장소 | MySQL (JPA, JOIN FETCH) |
-| 읽음 상태 | Redis (원자적 카운트) |
+| 채팅방/유저 저장소 | MySQL (TypeORM) |
+| 읽음 상태 | Redis (원자적 카운트, ioredis) |
 | 인증 | JWT (HS256, AccessToken 15분, RefreshToken 7일) |
 | 캐시/블랙리스트 | Redis |
-| 비동기 처리 | Spring @Async (MongoDB 쓰기) |
+| 비동기 처리 | async/await fire-and-forget (MongoDB 쓰기) |
+| STOMP 브로커 | 인메모리 (기본) / RabbitMQ (scale 모드) |

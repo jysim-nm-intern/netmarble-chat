@@ -13,7 +13,7 @@
 | 영역 | 포함 범위 |
 |------|-----------|
 | **프론트엔드** | React 기반 SPA (닉네임 로그인 → 채팅방 목록 → 채팅방 뷰) |
-| **백엔드** | Spring Boot REST API + STOMP WebSocket 서버 |
+| **백엔드** | NestJS REST API + STOMP WebSocket 서버 |
 | **데이터베이스** | MySQL (Docker 컨테이너) |
 | **제외 범위** | 실 서버 배포, 인증/인가(JWT), 외부 파일 스토리지 서비스 |
 
@@ -41,18 +41,19 @@
 | 스타일링 | TailwindCSS | - |
 | REST 클라이언트 | Axios | - |
 | WebSocket 클라이언트 | @stomp/stompjs + SockJS | - |
-| 백엔드 | Spring Boot | 3.x |
-| ORM | Spring Data JPA (Hibernate) | - |
-| 데이터베이스 | MySQL | 8.x (Docker) |
-| 빌드 도구 | Maven (서버), Vite (클라이언트) | - |
-| 테스트 (BE) | JUnit 5, Mockito, Testcontainers | - |
+| 백엔드 | NestJS (TypeScript) | 10.x |
+| ORM (MySQL) | TypeORM | 0.3.x |
+| ORM (MongoDB) | Mongoose (@nestjs/mongoose) | 7.x |
+| 데이터베이스 | MySQL + MongoDB + Redis | 8.x / 6.x / 7.x (Docker) |
+| 빌드 도구 | npm (서버), Vite (클라이언트) | - |
+| 테스트 (BE) | Jest, @nestjs/testing | - |
 | 테스트 (FE) | Vitest, React Testing Library, Playwright | - |
 | AI 도구 | GitHub Copilot / Claude | - |
 
 ## 구동 환경
 
 - **OS:** Windows 11 로컬 환경
-- **필수 설치:** Docker, Node.js 18+, Java 17+, Maven 3.8+
+- **필수 설치:** Docker, Node.js 20+
 
 | 서비스 | URL | 설명 |
 |--------|-----|------|

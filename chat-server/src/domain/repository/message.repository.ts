@@ -16,5 +16,14 @@ export abstract class MessageRepository {
     since: Date,
   ): Promise<Message[]>;
   abstract findLastByChatRoomId(chatRoomId: number): Promise<Message | null>;
+  abstract countByChatRoomIdAndIdGreaterThanAndSenderIdNot(
+    chatRoomId: number,
+    afterMessageId: number,
+    excludeSenderId: number,
+  ): Promise<number>;
+  abstract countByChatRoomIdAndSenderIdNot(
+    chatRoomId: number,
+    excludeSenderId: number,
+  ): Promise<number>;
   abstract delete(message: Message): Promise<void>;
 }
