@@ -161,7 +161,7 @@ export default function (data) {
           // 공유 방 구독 (다른 VU의 메시지도 여기서 수신됨)
           socket.send(stompFrame('SUBSCRIBE', {
             id: 'sub-0',
-            destination: `/topic/chatroom/${roomId}`,
+            destination: `/topic/chatroom.${roomId}`,
             ack: 'auto',
           }));
 

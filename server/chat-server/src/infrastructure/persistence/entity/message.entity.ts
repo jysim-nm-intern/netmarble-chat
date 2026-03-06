@@ -2,9 +2,13 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
 } from 'typeorm';
 
 @Entity('messages')
+@Index('idx_msg_room_deleted', ['chatRoomId', 'deleted'])
+@Index('idx_msg_room_sent', ['chatRoomId', 'sentAt'])
+@Index('idx_msg_sender', ['senderId'])
 export class MessageEntity {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -12,7 +16,7 @@ export class MessageEntity {
   @Column({ name: 'chat_room_id' })
   chatRoomId!: number;
 
-  @Column({ name: 'sender_id', type: 'bigint', nullable: true })
+  @Column({ name: 'sender_id', type: 'int', nullable: true })
   senderId: number | null = null;
 
   @Column({ type: 'text' })

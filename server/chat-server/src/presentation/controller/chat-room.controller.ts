@@ -72,6 +72,7 @@ export class ChatRoomController {
   }
 
   @Post(':id/join')
+  @HttpCode(HttpStatus.OK)
   async joinChatRoom(
     @Param('id', ParseIntPipe) id: number,
     @Query('userId') userIdStr: string,

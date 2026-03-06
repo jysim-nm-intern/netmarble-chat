@@ -6,8 +6,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as sockjs from 'sockjs';
-import { createServer, Server as HttpServer } from 'http';
+import { createServer, Server as HttpServer, IncomingMessage } from 'http';
 import { connect as amqpConnect } from 'amqplib';
+import { WebSocketServer, WebSocket } from 'ws';
+import type { Duplex } from 'stream';
 
 interface StompFrame {
   command: string;
@@ -15,10 +17,33 @@ interface StompFrame {
   body: string;
 }
 
+/** SockJS Connection과 raw WebSocket을 통합하는 인터페이스 */
+interface StompConnection {
+  readonly readyState: number;
+  write(data: string): void;
+  close(): void;
+  on(event: string, handler: (...args: any[]) => void): void;
+}
+
+/** raw WebSocket을 StompConnection으로 래핑 */
+class RawWsAdapter implements StompConnection {
+  constructor(private readonly ws: WebSocket) {}
+  get readyState(): number { return this.ws.readyState; }
+  write(data: string): void { if (this.ws.readyState === WebSocket.OPEN) this.ws.send(data); }
+  close(): void { this.ws.close(); }
+  on(event: string, handler: (...args: any[]) => void): void {
+    if (event === 'data') {
+      this.ws.on('message', (msg: Buffer) => handler(msg.toString()));
+    } else {
+      this.ws.on(event, handler);
+    }
+  }
+}
+
 interface Subscription {
   id: string;
   destination: string;
-  conn: sockjs.Connection;
+  conn: StompConnection;
 }
 
 /**
@@ -34,6 +59,7 @@ interface Subscription {
 export class StompBrokerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(StompBrokerService.name);
   private sockjsServer!: sockjs.Server;
+  private rawWss: WebSocketServer | null = null;
   private httpServer: HttpServer | null = null;
   private subscriptions: Subscription[] = [];
   private messageHandlers = new Map<
@@ -97,10 +123,24 @@ export class StompBrokerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** NestJS HTTP 서버에 SockJS 핸들러 설치 */
+  /** NestJS HTTP 서버에 SockJS + Raw WebSocket 핸들러 설치 */
   installHandlers(server: HttpServer): void {
     this.sockjsServer.installHandlers(server, { prefix: '/ws' });
-    this.logger.log('SockJS 핸들러가 HTTP 서버에 설치됨 (prefix: /ws)');
+
+    // k6 부하테스트 호환: /ws-stomp 경로에 raw WebSocket 지원
+    this.rawWss = new WebSocketServer({ noServer: true });
+    this.rawWss.on('connection', (ws: WebSocket) => {
+      this.handleConnection(new RawWsAdapter(ws));
+    });
+    server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+      if (req.url === '/ws-stomp' && this.rawWss) {
+        this.rawWss.handleUpgrade(req, socket, head, (ws) => {
+          this.rawWss!.emit('connection', ws, req);
+        });
+      }
+    });
+
+    this.logger.log('SockJS + Raw WebSocket 핸들러 설치됨 (prefix: /ws, /ws-stomp)');
   }
 
   /** /app/* 경로 메시지 핸들러 등록 */
@@ -215,7 +255,8 @@ export class StompBrokerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private handleConnection(conn: sockjs.Connection): void {
+  private handleConnection(conn: StompConnection): void {
+    this.logger.log('새 SockJS 연결');
     conn.on('data', (raw: string) => {
       const frames = this.parseFrames(raw);
 
@@ -240,6 +281,7 @@ export class StompBrokerService implements OnModuleInit, OnModuleDestroy {
                 destination: dest,
                 conn,
               });
+              this.logger.log(`SUBSCRIBE: dest=${dest}`);
             }
             break;
           }
@@ -279,7 +321,7 @@ export class StompBrokerService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private removeSubscriptions(conn: sockjs.Connection): void {
+  private removeSubscriptions(conn: StompConnection): void {
     this.subscriptions = this.subscriptions.filter((s) => s.conn !== conn);
   }
 

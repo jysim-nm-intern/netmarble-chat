@@ -16,6 +16,7 @@ export abstract class MessageRepository {
     since: Date,
   ): Promise<Message[]>;
   abstract findLastByChatRoomId(chatRoomId: number): Promise<Message | null>;
+  abstract findLastByChatRoomIds(chatRoomIds: number[]): Promise<Map<number, Message>>;
   abstract countByChatRoomIdAndIdGreaterThanAndSenderIdNot(
     chatRoomId: number,
     afterMessageId: number,

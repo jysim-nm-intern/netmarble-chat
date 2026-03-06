@@ -17,4 +17,5 @@ export abstract class ChatRoomMemberRepository {
   abstract findActiveChatRoomIdsByUserId(userId: number): Promise<Set<number>>;
   abstract findActiveByUserId(userId: number): Promise<ChatRoomMember[]>;
   abstract findActiveByChatRoomId(chatRoomId: number): Promise<ChatRoomMember[]>;
+  abstract findActiveByChatRoomIds(chatRoomIds: number[]): Promise<Map<number, ChatRoomMember[]>>;
 }

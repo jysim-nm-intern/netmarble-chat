@@ -116,7 +116,7 @@ export default function ({ roomId }) {
         stompConnected = true;
         socket.send(stompFrame('SUBSCRIBE', {
           id: 'sub-0',
-          destination: `/topic/chatroom/${roomId}`,
+          destination: `/topic/chatroom.${roomId}`,
           ack: 'auto',
         }));
         let cnt = 0;

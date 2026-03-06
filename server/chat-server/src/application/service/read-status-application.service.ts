@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   USER_REPOSITORY,
   UserRepository,
@@ -19,8 +19,6 @@ import {
 
 @Injectable()
 export class ReadStatusApplicationService {
-  private readonly logger = new Logger(ReadStatusApplicationService.name);
-
   constructor(
     @Inject(MESSAGE_REPOSITORY)
     private readonly messageRepository: MessageRepository,
@@ -56,10 +54,8 @@ export class ReadStatusApplicationService {
     event.userNickname = user.nickname;
     event.lastReadMessageId = lastMessage.id!;
     event.updatedAt = new Date();
-    this.stompBroker.send(
-      `/topic/chatroom.${chatRoomId}.read-status`,
-      JSON.stringify(event),
-    );
+    const destination = `/topic/chatroom.${chatRoomId}.read-status`;
+    this.stompBroker.send(destination, JSON.stringify(event));
   }
 
   async getUnreadCount(userId: number, chatRoomId: number): Promise<number> {
